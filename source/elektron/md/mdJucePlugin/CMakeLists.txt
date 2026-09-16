@@ -42,6 +42,7 @@ set(SOURCES
 	mdSettingsPanelFeel.cpp mdSettingsPanelFeel.h
 	mdSampleImport.cpp mdSampleImport.h
 	mdSampleDropTarget.cpp mdSampleDropTarget.h
+	mdMachineRack.cpp mdMachineRack.h
 	mdSettingsAudioInput.cpp mdSettingsAudioInput.h
 )
 
@@ -324,6 +325,17 @@ if(BUILD_TESTING)
 			LABELS "Integration;FirmwareTest;Soak"
 			SKIP_RETURN_CODE 77 TIMEOUT 900)
 	endif()
+
+	# Diagnostic tool, not a test: renders the real editor with the software renderer to PNG.
+	add_executable(mdSkinSnapshotTool mdSkinSnapshotTool.cpp mdSkinSnapshotLoop.mm)
+	target_link_libraries(mdSkinSnapshotTool PRIVATE
+		mdJucePlugin jucePluginEditorLib mdLib juce_plugin_modules
+		juce::juce_opengl)
+	target_include_directories(mdSkinSnapshotTool PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR}/../../..)
+	target_compile_definitions(mdSkinSnapshotTool PRIVATE
+		JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1)
+	set_property(TARGET mdSkinSnapshotTool PROPERTY FOLDER "Elektron/test")
 
 	add_executable(mdSampleImportTest mdSampleImportTest.cpp)
 	target_link_libraries(mdSampleImportTest PRIVATE

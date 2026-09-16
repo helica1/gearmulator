@@ -144,6 +144,15 @@ namespace md
 		return m_patchRam;
 	}
 
+	bool Microcontroller::copyPatchRamRange(uint8_t* const _destination, const size_t _offset, const size_t _size) const
+	{
+		std::shared_lock lock(m_patchRamMutex);
+		if(!_destination || _offset > m_patchRam.size() || _size > m_patchRam.size() - _offset)
+			return false;
+		std::copy_n(m_patchRam.begin() + static_cast<std::ptrdiff_t>(_offset), _size, _destination);
+		return true;
+	}
+
 	bool Microcontroller::replacePatchRam(const std::vector<uint8_t>& _data)
 	{
 		if(_data.size() != m_patchRam.size())

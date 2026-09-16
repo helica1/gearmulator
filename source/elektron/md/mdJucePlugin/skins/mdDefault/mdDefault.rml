@@ -8,8 +8,9 @@
 		<link type="text/rcss" href="mdKnobs.rcss"/>
 		<link type="text/rcss" href="mdDefault.rcss"/>
 		<link type="text/rcss" href="elektron_materials.rcss"/>
+		<link type="text/rcss" href="machineRack.rcss"/>
 	</head>
-	<body id="Root" class="elektronPanel elektronPanel--md" style="left: 0dp; top: 0dp; width: 1100dp; height: 570dp;">
+	<body id="Root" class="elektronPanel elektronPanel--md" style="left: 0dp; top: 0dp; width: 1100dp; height: 766dp;">
 		<div class="jucePos elektronAluminumPanel mdChassis" style="left: 0dp; top: 0dp; width: 1100dp; height: 570dp;"/>
 
 		<!-- Rear-connector legends printed along the hardware's upper faceplate. -->
@@ -454,5 +455,6 @@
 			<button id="btScale" class="juceButton elektronButton elektronKey elektronScaleButton" isToggle="0"/>
 			<div id="altScaleSetup" class="juceLabel elektronButtonCaption elektronScaleSetup elektronSecondary compact mdAffordance" title="FUNCTION + SCALE: Scale setup">SCALE SETUP</div>
 		</div>
+		<div id="machineRack"/>
 	</body>
 </rml>

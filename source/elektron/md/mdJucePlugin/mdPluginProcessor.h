@@ -2,6 +2,7 @@
 
 #include "jucePluginEditorLib/pluginProcessor.h"
 #include "mdLib/mdremotepanel.h"
+#include "mdLib/mdsampledirectory.h"
 #include "mdLib/mdtypes.h"
 #include "synthLib/performanceReport.h"
 
@@ -58,6 +59,15 @@ namespace mdJucePlugin
 		// Restarts the machine on another OS image, from a fresh factory state.
 		bool setFirmwareImage(const std::string& _path, std::string& _error);
 
+		// Machine selector: assigns a machine (firmware model id, see mdLib/mdmachines.h)
+		// to the machine's current track. Returns false while the current track is unknown.
+		bool assignMachineToCurrentTrack(uint16_t _machineId);
+		int getCurrentTrack();
+		// true when the running OS is not the stock image (community X.xx builds add machines)
+		bool isExtendedOs() const;
+		// Machinedrum UW sample slots as stored in the emulated machine
+		std::optional<md::sampleDirectory::Directory> readSampleDirectory();
+
 		// Browser front panel for tablets on the local network, see mdLib/mdremotepanel.h
 		void startRemotePanel();
 		std::string getRemotePanelUrl() const;
@@ -90,6 +100,9 @@ namespace mdJucePlugin
 
 		std::unique_ptr<synthLib::PerformanceReport> m_performanceReport;
 		std::unique_ptr<md::RemotePanelServer> m_remotePanel;
+		std::mutex m_remoteSlotNamesMutex;
+		std::vector<std::string> m_remoteSlotNames;
+		uint32_t m_remoteSlotNamesTime = 0;
 		juce::File m_performanceReportFile;
 		bool m_performanceFolderError = false;
 		const md::MachineModel m_model;

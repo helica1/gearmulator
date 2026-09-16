@@ -357,6 +357,16 @@ namespace mdJucePlugin
 		drainRealtimeParameterChanges(RealtimeAutomationCapacity, false);
 		completeSynchronizationIfReady();
 		const auto now = milliseconds();
+		// The machine selector needs the current track. Its status message is tiny; it
+		// bypasses sendSynchronizationRequest so automation request accounting is unchanged.
+		if(firmwareReadyForAutomation() && now - m_lastTrackPollMs >= 300)
+		{
+			m_lastTrackPollMs = now;
+			synthLib::SMidiEvent event(synthLib::MidiEventSource::Editor);
+			event.sysex = toPluginSysex(md::automation::sysex::statusRequest(m_model,
+				md::automation::sysex::StatusParameter::CurrentTrack));
+			sendMidiEvent(event);
+		}
 		if(m_automationReady.load(std::memory_order_acquire))
 		{
 			// Firmware Global is authoritative for the MIDI channel, and a front-panel
@@ -841,6 +851,9 @@ namespace mdJucePlugin
 				return true;
 			}
 			case md::automation::sysex::StatusParameter::Pattern:
+				return true;
+			case md::automation::sysex::StatusParameter::CurrentTrack:
+				m_currentTrack.store(status->value, std::memory_order_release);
 				return true;
 			}
 		}

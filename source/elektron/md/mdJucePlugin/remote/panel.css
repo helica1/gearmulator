@@ -198,3 +198,67 @@ html, body {
 .mm .playIcon { filter: brightness(0.25); }
 .trigModeLabel { color: #353630; font-size: 9px; text-align: left; height: 14px; line-height: 14px; white-space: nowrap; }
 .miniLabel.bold { font-weight: bold; letter-spacing: 1px; height: 13px; line-height: 13px; }
+
+/* ---- machine rack below the faceplate ---- */
+#stage { height: 766px; }
+.rack { position: absolute; left: 0; top: 570px; width: 1100px; height: 196px; box-sizing: border-box; overflow: hidden;
+	--accent: #ff9d3a;
+	background: radial-gradient(120% 140% at 50% -20%, #2a2d34 0%, #14161a 55%, #0a0b0d 100%);
+	border-top: 2px solid #3a3d44; box-shadow: inset 0 1px 0 #ffffff10; color: #e9ecef;
+	font-family: Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif; }
+.rackHeader { position: absolute; left: 18px; right: 18px; top: 10px; height: 24px; display: flex; align-items: center; }
+.rackTitle { display: flex; align-items: center; color: #c9ccd2; font-size: 12px; font-weight: 700; letter-spacing: 4px; margin-right: 14px; }
+.rackDot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--accent); box-shadow: 0 0 8px var(--accent), 0 0 2px #fff; }
+.rackTrack { height: 20px; line-height: 20px; padding: 0 12px; border-radius: 10px; border: 1px solid #6a4228; color: #ffb27a;
+	background: linear-gradient(#3a2618, #22160e); font-size: 10px; font-weight: 700; letter-spacing: 1px; margin-right: 18px; white-space: nowrap; }
+.rackTrack.flash { animation: rackFlash 0.7s ease-out; }
+@keyframes rackFlash { 0% { box-shadow: 0 0 0 0 #ffb27aaa; background: #6a4228; } 100% { box-shadow: 0 0 0 10px #ffb27a00; } }
+.rackTabs { display: flex; flex: 1 1 auto; justify-content: flex-end; gap: 5px; }
+.rackTab { height: 20px; line-height: 20px; padding: 0 9px; border-radius: 10px; border: 1px solid #2e3138; background: #1a1c20;
+	color: #8a8f98; font-size: 10px; font-weight: 700; letter-spacing: 1px; transition: all 0.15s; }
+.rackTab.active { background: var(--accent); color: #0c0d10; border-color: #ffffff50; box-shadow: 0 0 12px var(--accent); }
+.rackTab.pressed { transform: scale(0.94); }
+.rackAccent { position: absolute; left: 18px; right: 18px; top: 38px; height: 1px;
+	background: linear-gradient(90deg, transparent, var(--accent) 20%, var(--accent) 80%, transparent); opacity: 0.55; box-shadow: 0 0 6px var(--accent); }
+.rackGrid { position: absolute; left: 18px; right: 12px; top: 46px; height: 128px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; }
+.rackTile { position: relative; width: 80px; height: 38px; box-sizing: border-box; border-radius: 6px; border: 1px solid #34373e;
+	background: linear-gradient(#2d3037, #16181c); box-shadow: inset 0 1px 0 #ffffff12, 0 2px 4px #00000060; transition: transform 0.08s, box-shadow 0.15s; }
+.rackTile::before { content: ""; position: absolute; left: 0; top: 6px; width: 3px; height: 24px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.rackTileCode { position: absolute; left: 11px; top: 3px; right: 4px; font-size: 16px; font-weight: 800; color: #f2f4f7; line-height: 19px; }
+.rackTileName { position: absolute; left: 11px; top: 22px; right: 4px; font-size: 8px; letter-spacing: 1px; color: #8a8f98; line-height: 12px; white-space: nowrap; overflow: hidden; }
+.rackTile.pressed { transform: scale(0.95); border-color: var(--accent); box-shadow: 0 0 14px var(--accent), inset 0 0 10px #00000080; }
+.rackTile.assigned { border-color: var(--accent); background: linear-gradient(#4a3020, #1c130c); box-shadow: 0 0 12px var(--accent); animation: rackPulse 1.6s ease-in-out infinite; }
+@keyframes rackPulse { 0%, 100% { box-shadow: 0 0 6px var(--accent); } 50% { box-shadow: 0 0 16px var(--accent); } }
+.rackGrid.compact { gap: 5px 6px; }
+.rackGrid.compact .rackTile { width: 76px; height: 27px; }
+.rackGrid.compact .rackTile::before { top: 4px; height: 17px; }
+.rackGrid.compact .rackTileCode { top: 3px; left: 10px; right: auto; width: 22px; font-size: 12px; line-height: 20px; color: #c9ccd2; }
+.rackGrid.compact .rackTileName { left: 34px; top: 3px; font-size: 11px; font-weight: 700; letter-spacing: 0; line-height: 20px; color: #ffc58f; }
+.rackTile.empty { background: linear-gradient(#1e2024, #131417); border-style: dashed; }
+.rackTile.empty .rackTileName { color: #5c616a; font-weight: 400; }
+.rackEmpty { width: 100%; text-align: center; margin-top: 44px; color: #8a8f98; font-size: 12px; }
+.rackHint { position: absolute; left: 18px; right: 18px; bottom: 6px; color: #5c616a; font-size: 9px; letter-spacing: 1px; white-space: nowrap; overflow: hidden; }
+
+.rackModal { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+	background: #05060899; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: rackFade 0.15s ease-out; }
+.rackModal.hidden { display: none; }
+@keyframes rackFade { from { opacity: 0; } to { opacity: 1; } }
+.rackCard { --accent: #ff9d3a; width: 360px; padding: 26px 28px 22px; border-radius: 18px; text-align: center; color: #e9ecef;
+	background: linear-gradient(#262930, #121418); border: 1px solid #3a3d44;
+	box-shadow: 0 0 0 1px #00000080, 0 20px 60px #000000c0, 0 0 40px color-mix(in srgb, var(--accent) 35%, transparent);
+	font-family: Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif; animation: rackPop 0.18s ease-out; }
+@keyframes rackPop { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.rackCardCode { display: inline-block; min-width: 86px; padding: 8px 16px; border-radius: 12px; font-size: 40px; font-weight: 900; line-height: 48px;
+	color: #0c0d10; background: var(--accent); box-shadow: 0 0 24px var(--accent); }
+.rackCardTitle { margin-top: 18px; font-size: 22px; font-weight: 800; letter-spacing: 1px; }
+.rackCardSub { margin-top: 4px; font-size: 14px; color: #ffb27a; font-weight: 700; letter-spacing: 1px; }
+.rackCardDesc { margin-top: 12px; font-size: 13px; color: #9aa0a8; line-height: 18px; }
+.rackCardButtons { display: flex; gap: 12px; margin-top: 22px; }
+.rackButton { flex: 1 1 0; height: 46px; line-height: 46px; border-radius: 12px; font-size: 16px; font-weight: 800; letter-spacing: 1px; transition: transform 0.08s; }
+.rackButton.cancel { background: #24272d; color: #c9ccd2; border: 1px solid #3a3d44; }
+.rackButton.load { background: var(--accent); color: #0c0d10; box-shadow: 0 0 18px var(--accent); }
+.rackButton.pressed { transform: scale(0.96); }
+.rackToast { --accent: #ff9d3a; position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 21; padding: 12px 22px; border-radius: 24px;
+	background: #16181ce8; border: 1px solid var(--accent); color: #f2f4f7; font: 700 15px Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
+	letter-spacing: 1px; box-shadow: 0 0 20px var(--accent), 0 10px 30px #000000a0; transition: opacity 0.25s; }
+.rackToast.hidden { opacity: 0; pointer-events: none; }

@@ -50,6 +50,7 @@ namespace mdJucePlugin
 	struct EditorIdentityTestAccess;
 
 	class SampleDropTarget;
+	class MachineRack;
 
 	class Editor final : public jucePluginEditorLib::Editor, juce::MultiTimer,
 		private juce::FocusChangeListener
@@ -170,6 +171,7 @@ namespace mdJucePlugin
 		std::optional<md::SysexImportTicket> beginUserSysexTicket();
 		void importSampleFiles(const std::vector<juce::File>& _files, const md::SysexImportTicket& _ticket);
 		void openSampleSlotMenu(const std::shared_ptr<std::vector<sampleImport::DecodedSample>>& _samples, const md::SysexImportTicket& _ticket);
+		void confirmSampleSlots(const std::shared_ptr<std::vector<sampleImport::DecodedSample>>& _samples, uint32_t _firstSlot, const md::SysexImportTicket& _ticket);
 		void sendSamples(const std::shared_ptr<std::vector<sampleImport::DecodedSample>>& _samples, uint32_t _firstSlot, const md::SysexImportTicket& _ticket);
 		void showSampleError(const juce::String& _message);
 		void startUserSysexTransfer(const std::shared_ptr<md::PreparedMidiSysexTransfer>& _prepared,
@@ -273,6 +275,7 @@ namespace mdJucePlugin
 		std::unique_ptr<juce::FileChooser> m_sysexFileChooser;
 		std::unique_ptr<juce::FileChooser> m_sampleFileChooser;
 		std::unique_ptr<SampleDropTarget> m_sampleDropTarget;
+		std::unique_ptr<MachineRack> m_machineRack;
 		// what goes into which slot once the running transfer completes
 		struct PendingSampleSlots
 		{

@@ -1,0 +1,250 @@
+/* Machine selector rack below the faceplate. Shared by the MD and MM skins. */
+
+#machineRack
+{
+	position: absolute;
+	left: 0dp;
+	top: 570dp;
+	width: 1100dp;
+	height: 196dp;
+	decorator: vertical-gradient(#1d1f24 #0c0d10);
+	border-top: 2dp #3a3d44;
+	font-family: Roboto;
+}
+
+.rackHeader
+{
+	position: absolute;
+	left: 18dp;
+	top: 10dp;
+	width: 1064dp;
+	height: 24dp;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+}
+
+.rackTitle
+{
+	color: #c9ccd2;
+	font-size: 12dp;
+	font-weight: bold;
+	letter-spacing: 4dp;
+	margin-right: 14dp;
+}
+
+.rackTrack
+{
+	height: 20dp;
+	line-height: 20dp;
+	padding: 0dp 12dp;
+	border-radius: 10dp;
+	border: 1dp #5a3a26;
+	decorator: vertical-gradient(#3a2618 #22160e);
+	color: #ffb27a;
+	font-size: 10dp;
+	font-weight: bold;
+	letter-spacing: 1dp;
+	margin-right: 18dp;
+}
+
+.rackTabs
+{
+	display: flex;
+	flex-direction: row;
+	flex-grow: 1;
+	justify-content: flex-end;
+}
+
+.rackTab
+{
+	height: 20dp;
+	line-height: 20dp;
+	padding: 0dp 9dp;
+	margin-left: 5dp;
+	border-radius: 10dp;
+	border: 1dp #2e3138;
+	background-color: #1a1c20;
+	color: #8a8f98;
+	font-size: 10dp;
+	font-weight: bold;
+	letter-spacing: 1dp;
+	cursor: pointer;
+}
+
+.rackTab:hover
+{
+	color: #ffffff;
+	border-color: #555a63;
+}
+
+.rackTab.active
+{
+	color: #0c0d10;
+	border-color: #ffffff40;
+}
+
+.rackHint
+{
+	position: absolute;
+	left: 18dp;
+	top: 176dp;
+	width: 1064dp;
+	height: 14dp;
+	color: #5c616a;
+	font-size: 9dp;
+	letter-spacing: 1dp;
+}
+
+.rackGrid
+{
+	position: absolute;
+	left: 18dp;
+	top: 42dp;
+	width: 1070dp;
+	height: 132dp;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-content: flex-start;
+}
+
+.rackTile
+{
+	position: relative;
+	width: 80dp;
+	height: 38dp;
+	margin: 0dp 6dp 6dp 0dp;
+	border-radius: 5dp;
+	border: 1dp #34373e;
+	decorator: vertical-gradient(#2b2e35 #17191d);
+	cursor: pointer;
+}
+
+.rackTile:hover
+{
+	border-color: #8a8f98;
+	decorator: vertical-gradient(#393d46 #1f2227);
+}
+
+.rackTile:active
+{
+	decorator: vertical-gradient(#17191d #2b2e35);
+}
+
+.rackTileStripe
+{
+	position: absolute;
+	left: 0dp;
+	top: 5dp;
+	width: 3dp;
+	height: 26dp;
+	border-radius: 2dp;
+}
+
+.rackTileCode
+{
+	position: absolute;
+	left: 10dp;
+	top: 3dp;
+	width: 66dp;
+	height: 19dp;
+	line-height: 19dp;
+	color: #eef0f3;
+	font-size: 16dp;
+	font-weight: bold;
+}
+
+.rackTileName
+{
+	position: absolute;
+	left: 10dp;
+	top: 22dp;
+	width: 66dp;
+	height: 12dp;
+	line-height: 12dp;
+	color: #8a8f98;
+	font-size: 8dp;
+	letter-spacing: 1dp;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.rackGrid.compact .rackTile
+{
+	width: 76dp;
+	height: 27dp;
+	margin: 0dp 6dp 5dp 0dp;
+}
+
+.rackGrid.compact .rackTileStripe
+{
+	top: 4dp;
+	height: 19dp;
+}
+
+.rackGrid.compact .rackTileCode
+{
+	top: 3dp;
+	width: 22dp;
+	height: 20dp;
+	line-height: 20dp;
+	font-size: 12dp;
+}
+
+.rackGrid.compact .rackTileName
+{
+	left: 34dp;
+	top: 4dp;
+	width: 40dp;
+	height: 19dp;
+	line-height: 19dp;
+	font-size: 11dp;
+	font-weight: bold;
+	color: #ffc58f;
+	letter-spacing: 0dp;
+}
+
+.rackTile.empty .rackTileName
+{
+	color: #5c616a;
+	font-weight: normal;
+}
+
+.rackTile.assigned
+{
+	border-color: #ff9d3a;
+	decorator: vertical-gradient(#4a3020 #20150d);
+}
+
+.rackTile.assigned .rackTileCode
+{
+	color: #ffd2a8;
+}
+
+.rackEmpty
+{
+	color: #8a8f98;
+	font-size: 11dp;
+	margin-top: 40dp;
+	width: 1060dp;
+	text-align: center;
+}
+
+.rackAccentLeft, .rackAccentRight
+{
+	position: absolute;
+	top: 37dp;
+	height: 1dp;
+	width: 532dp;
+}
+
+.rackAccentLeft
+{
+	left: 18dp;
+}
+
+.rackAccentRight
+{
+	left: 550dp;
+}

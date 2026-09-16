@@ -32,6 +32,9 @@ namespace md
 		                        e <PanelEncoder name> <delta>  encoder turned, signed step count
 		                        p <PanelEncoder name> <1|0>    encoder pushed / released
 		                        t <track 0..15>                select a track (Machinedrum, via sysex)
+		                        m <machine id>                 assign a machine to the current track
+		                      The server also pushes a text frame "M <json>" with the machine catalogue,
+		                      the current track and the UW sample slot names whenever they change.
 		                        hello                          ask for the current state right away
 	*/
 	class RemotePanelServer
@@ -45,6 +48,9 @@ namespace md
 			std::function<void(const std::vector<uint8_t>&)> sendSysex;
 			// path without leading slash -> content. Returns false when unknown.
 			std::function<bool(const std::string& _path, std::string& _data, std::string& _mime)> resource;
+			// machine selector: catalogue and state as JSON (see mdmachines.h), and assignment to the current track
+			std::function<std::string()> machineInfo;
+			std::function<bool(uint16_t _machineId)> assignMachine;
 		};
 
 		RemotePanelServer(MachineModel _model, int _port, Callbacks _callbacks);
@@ -66,6 +72,7 @@ namespace md
 			std::shared_ptr<networkLib::TcpStream> stream;
 			std::mutex writeMutex;
 			std::vector<uint8_t> lastState;
+			std::string lastMachineInfo;
 			std::atomic<bool> websocket{false};
 			std::atomic<bool> closed{false};
 			std::unique_ptr<std::thread> thread;
@@ -96,6 +103,8 @@ namespace md
 		std::vector<std::shared_ptr<Client>> m_clients;
 
 		std::mutex m_inputMutex;
+		uint32_t m_infoTick = 0;
+		std::atomic<bool> m_infoForce{false};
 		PanelRowState m_rows;
 	};
 }

@@ -73,6 +73,11 @@ namespace mdJucePlugin
 		}
 		int getLastFirmwareKitValue(const pluginLib::Parameter& _parameter) const;
 		void requestAutomationState();
+
+		// Current track of the machine (polled via status request 0x22), -1 while unknown.
+		int getCurrentTrack() const { return m_currentTrack.load(std::memory_order_acquire); }
+		// Re-reads the kit, e.g. after a machine was assigned to a track.
+		void refreshKit() { requestKitState(); }
 		std::vector<uint8_t> createAutomationSnapshot() const;
 		bool restoreAutomationSnapshot(const std::vector<uint8_t>& _snapshot);
 
@@ -162,6 +167,8 @@ namespace mdJucePlugin
 		std::atomic<bool> m_haveKit{false};
 		std::atomic<bool> m_automationReady{false};
 		std::atomic<uint64_t> m_lastStatePollMs{0};
+		std::atomic<int> m_currentTrack{-1};
+		uint64_t m_lastTrackPollMs = 0;
 		std::atomic<uint64_t> m_kitDumpRequestRevision{0};
 		std::atomic<bool> m_forceApplyRequestedKitDump{false};
 		std::atomic<bool> m_applyRequestedKitDump{true};

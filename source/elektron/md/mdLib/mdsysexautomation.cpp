@@ -72,6 +72,8 @@ namespace md::automation::sysex
 				return _value < (_model == MachineModel::Monomachine ? 128 : 64);
 			case StatusParameter::Pattern:
 				return _value < 128;
+			case StatusParameter::CurrentTrack:
+				return _value < (_model == MachineModel::Monomachine ? 6 : 16);
 			}
 			return false;
 		}
@@ -86,7 +88,8 @@ namespace md::automation::sysex
 			const auto parameter = _message[7];
 			if(parameter != static_cast<uint8_t>(StatusParameter::Global)
 				&& parameter != static_cast<uint8_t>(StatusParameter::Kit)
-				&& parameter != static_cast<uint8_t>(StatusParameter::Pattern))
+				&& parameter != static_cast<uint8_t>(StatusParameter::Pattern)
+				&& parameter != static_cast<uint8_t>(StatusParameter::CurrentTrack))
 				return std::nullopt;
 			const auto typedParameter = static_cast<StatusParameter>(parameter);
 			return validStatusValue(_model, typedParameter, _message[8])

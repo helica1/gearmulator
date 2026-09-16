@@ -8,8 +8,9 @@
 		<link type="text/rcss" href="mmKnobs.rcss"/>
 		<link type="text/rcss" href="mmSfx60.rcss"/>
 		<link type="text/rcss" href="elektron_materials.rcss"/>
+		<link type="text/rcss" href="machineRack.rcss"/>
 	</head>
-	<body id="Root" class="elektronPanel elektronPanel--mm" style="left: 0dp; top: 0dp; width: 1100dp; height: 570dp;">
+	<body id="Root" class="elektronPanel elektronPanel--mm" style="left: 0dp; top: 0dp; width: 1100dp; height: 766dp;">
 
 		<!-- Existing panel geometry, with branding positions intentionally left blank. -->
 
@@ -429,5 +430,6 @@
 			<button id="btScale" class="juceButton elektronButton elektronKey elektronScaleButton mmScaleButton" isToggle="0"/>
 			<div id="altScaleSetup" class="juceLabel elektronButtonCaption elektronScaleSetup elektronSecondary compact mmAffordance" title="FUNCTION + SCALE: Scale setup">SCALE SETUP</div>
 		</div>
+		<div id="machineRack"/>
 	</body>
 </rml>

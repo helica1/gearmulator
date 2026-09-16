@@ -309,3 +309,13 @@ set_property(TARGET mdSdsEncodeTest PROPERTY FOLDER "Elektron/test")
 add_executable(mdSampleRateProbe mdSampleRateProbe.cpp)
 target_link_libraries(mdSampleRateProbe PRIVATE mdLib)
 set_property(TARGET mdSampleRateProbe PROPERTY FOLDER "Elektron")
+
+# Diagnostic tool, not a test: locates the UW sample slot directory in flash.
+add_executable(mdSampleDirProbe mdSampleDirProbe.cpp)
+target_link_libraries(mdSampleDirProbe PRIVATE mdLib)
+set_property(TARGET mdSampleDirProbe PROPERTY FOLDER "Elektron")
+
+# Diagnostic tool, not a test: checks current track status and ASSIGN MACHINE against the firmware.
+add_executable(mdMachineAssignProbe mdMachineAssignProbe.cpp)
+target_link_libraries(mdMachineAssignProbe PRIVATE mdLib)
+set_property(TARGET mdMachineAssignProbe PROPERTY FOLDER "Elektron")

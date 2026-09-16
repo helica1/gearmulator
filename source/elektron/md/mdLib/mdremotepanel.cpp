@@ -497,7 +497,20 @@ namespace md
 			// force a full state on the next publish
 			std::lock_guard lock(m_clientsMutex);
 			for(auto& c : m_clients)
+			{
 				c->lastState.clear();
+				c->lastMachineInfo.clear();
+			}
+			m_infoForce = true;
+			return;
+		}
+
+		if(type == "m")
+		{
+			int id = -1;
+			ss >> id;
+			if(id >= 0 && id < 256 && m_callbacks.assignMachine)
+				m_callbacks.assignMachine(static_cast<uint16_t>(id));
 			return;
 		}
 
@@ -584,8 +597,24 @@ namespace md
 
 			const auto state = encodeState(m_model, m_callbacks.snapshot());
 
+			// the machine info changes rarely; build it about four times a second
+			std::string machineInfo;
+			const bool infoDue = m_callbacks.machineInfo && ((++m_infoTick % 16) == 0 || m_infoForce.exchange(false));
+			if(infoDue)
+				machineInfo = "M " + m_callbacks.machineInfo();
+
 			for(auto& c : clients)
 			{
+				if(infoDue && c->lastMachineInfo != machineInfo)
+				{
+					c->lastMachineInfo = machineInfo;
+					if(!sendWebSocketFrame(*c, 1, reinterpret_cast<const uint8_t*>(machineInfo.data()), machineInfo.size()))
+					{
+						c->closed = true;
+						c->stream->close();
+						continue;
+					}
+				}
 				if(c->lastState == state)
 					continue;
 				c->lastState = state;

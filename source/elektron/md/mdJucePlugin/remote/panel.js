@@ -96,8 +96,9 @@
 	function layout() {
 		const stage = document.getElementById('stage');
 		const w = window.innerWidth, h = window.innerHeight;
-		stageScale = Math.min(w / 1100, h / 570);
-		const x = Math.floor((w - 1100 * stageScale) / 2), y = Math.floor((h - 570 * stageScale) / 2);
+		const stageHeight = document.getElementById('rack') ? 766 : 570;
+		stageScale = Math.min(w / 1100, h / stageHeight);
+		const x = Math.floor((w - 1100 * stageScale) / 2), y = Math.floor((h - stageHeight * stageScale) / 2);
 		stage.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + stageScale + ')';
 	}
 
@@ -106,6 +107,7 @@
 	function send(msg) {
 		if (socket && socket.readyState === WebSocket.OPEN) socket.send(msg);
 	}
+	window.remotePanelSend = send;
 
 	function connect() {
 		const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -117,6 +119,8 @@
 		};
 		socket.onmessage = function (ev) {
 			if (ev.data instanceof ArrayBuffer) applyState(new Uint8Array(ev.data));
+			else if (typeof ev.data === 'string' && ev.data.charAt(0) === 'M' && window.remotePanelMachineInfo)
+				window.remotePanelMachineInfo(ev.data.substring(2));
 		};
 		socket.onclose = function () {
 			document.getElementById('overlay').classList.remove('hidden');

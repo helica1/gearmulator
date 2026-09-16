@@ -152,6 +152,7 @@ namespace md
 			m_midiTransmitTap = std::move(_tap);
 		}
 		std::vector<uint8_t> copyPatchRam() const;
+		bool copyPatchRamRange(uint8_t* _destination, size_t _offset, size_t _size) const;
 		bool replacePatchRam(const std::vector<uint8_t>& _data);
 		std::vector<uint8_t> copyFlashData() const;
 		std::vector<uint8_t> copyUserFlash() const;

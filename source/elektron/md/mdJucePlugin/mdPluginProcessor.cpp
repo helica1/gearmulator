@@ -10,6 +10,7 @@
 
 #include "mdLib/mddevice.h"
 #include "mdLib/mdromloader.h"
+#include "mdLib/mdmachines.h"
 #include "mdLib/mdstate.h"
 #include "mdLib/mdpanel.h"
 
@@ -487,6 +488,37 @@ namespace mdJucePlugin
 			return false;
 		};
 
+		callbacks.machineInfo = [this]
+		{
+			// sample slot names are read from the machine at most every two seconds
+			const auto now = juce::Time::getMillisecondCounter();
+			std::vector<std::string> names;
+			{
+				std::lock_guard lock(m_remoteSlotNamesMutex);
+				if(m_remoteSlotNamesTime == 0 || now - m_remoteSlotNamesTime > 2000)
+				{
+					m_remoteSlotNamesTime = now | 1;
+					m_remoteSlotNames.clear();
+					if(const auto directory = readSampleDirectory())
+					{
+						for(const auto& slot : directory->slots)
+						{
+							auto name = slot.used ? slot.name : std::string();
+							while(!name.empty() && name.back() == ' ')
+								name.pop_back();
+							m_remoteSlotNames.push_back(slot.used && name.empty() ? std::string("----") : name);
+						}
+					}
+				}
+				names = m_remoteSlotNames;
+			}
+			return md::machines::toJson(m_model, isExtendedOs(), getCurrentTrack(), names);
+		};
+		callbacks.assignMachine = [this](const uint16_t _machineId)
+		{
+			return assignMachineToCurrentTrack(_machineId);
+		};
+
 		m_remotePanel = std::make_unique<md::RemotePanelServer>(m_model, port, std::move(callbacks));
 		if(!m_remotePanel->start())
 		{
@@ -911,6 +943,7 @@ namespace mdJucePlugin
 			if(readFirmwareImage(m_firmwareImagePath, data, error))
 			{
 				std::fprintf(stderr, "[MD] booting firmware image %s\n", m_firmwareImagePath.c_str());
+				m_firmwareFingerprint = md::RomLoader::fingerprint(data);
 				params.romName = m_firmwareImagePath;
 				params.romData = std::move(data);
 			}
@@ -1084,6 +1117,50 @@ namespace mdJucePlugin
 		updateHostDisplay(juce::AudioProcessorListener::ChangeDetails()
 			.withNonParameterStateChanged(true));
 		return true;
+	}
+
+	int AudioPluginAudioProcessor::getCurrentTrack()
+	{
+		auto* const controller = dynamic_cast<Controller*>(&getController());
+		return controller ? controller->getCurrentTrack() : -1;
+	}
+
+	bool AudioPluginAudioProcessor::assignMachineToCurrentTrack(const uint16_t _machineId)
+	{
+		auto* const controller = dynamic_cast<Controller*>(&getController());
+		if(!controller)
+			return false;
+		const auto track = controller->getCurrentTrack();
+		if(track < 0 || !md::machines::find(m_model, _machineId))
+			return false;
+		const auto sysex = md::machines::assignMachine(m_model, static_cast<uint8_t>(track), _machineId);
+		synthLib::SMidiEvent event(synthLib::MidiEventSource::Editor);
+		event.sysex.assign(sysex.begin(), sysex.end());
+		getPlugin().addMidiEvent(event);
+		controller->refreshKit();
+		return true;
+	}
+
+	bool AudioPluginAudioProcessor::isExtendedOs() const
+	{
+		return m_model == md::MachineModel::Machinedrum && !m_firmwareImagePath.empty()
+			&& m_firmwareFingerprint != md::g_mdOs163Fingerprint;
+	}
+
+	std::optional<md::sampleDirectory::Directory> AudioPluginAudioProcessor::readSampleDirectory()
+	{
+		if(m_model != md::MachineModel::Machinedrum)
+			return std::nullopt;
+		return getPlugin().withDeviceLocked([](synthLib::Device* const _device) -> std::optional<md::sampleDirectory::Directory>
+		{
+			auto* const device = dynamic_cast<md::Device*>(_device);
+			if(!device || !device->isValid())
+				return std::nullopt;
+			auto dir = md::sampleDirectory::read(device->getHardware());
+			if(!dir.valid)
+				return std::nullopt;
+			return dir;
+		});
 	}
 
 	pluginLib::Controller* AudioPluginAudioProcessor::createController()

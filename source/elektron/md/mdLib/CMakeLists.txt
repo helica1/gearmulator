@@ -24,6 +24,8 @@ set(SOURCES
 	mdpanel.cpp mdpanel.h
 	mdremotepanel.cpp mdremotepanel.h
 	mdsdsencode.cpp mdsdsencode.h
+	mdsampledirectory.cpp mdsampledirectory.h
+	mdmachines.cpp mdmachines.h
 	mdsim.cpp mdsim.h
 	mdrom.cpp mdrom.h
 	mdromdata.cpp mdromdata.h

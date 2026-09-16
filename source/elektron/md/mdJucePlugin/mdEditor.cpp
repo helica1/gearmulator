@@ -6,6 +6,7 @@
 #include "mdSettingsAudioInput.h"
 #include "mdSettingsPanelFeel.h"
 #include "mdSampleDropTarget.h"
+#include "mdMachineRack.h"
 #include "mdPixelPerfectPanel.h"
 #include "mdLcdViewport.h"
 
@@ -284,6 +285,24 @@ namespace mdJucePlugin
 		bindSettingsButton();
 		if(auto* const document = getRmlComponent() ? getRmlComponent()->getDocument() : nullptr)
 			m_sampleDropTarget = std::make_unique<SampleDropTarget>(document, *this);
+		if(auto* const rack = findChild("machineRack", false))
+		{
+			if(auto* const processor = dynamic_cast<AudioPluginAudioProcessor*>(&getProcessor()))
+			{
+				// the rack is an add-on; a failure there must not take the editor down
+				try
+				{
+					m_machineRack = std::make_unique<MachineRack>(*this, *processor, rack);
+				}
+				catch(const std::exception& e)
+				{
+					std::fprintf(stderr, "[MD] machine rack disabled: %s\n", e.what());
+					m_machineRack.reset();
+				}
+			}
+		}
+		else
+			std::fprintf(stderr, "[MD] skin has no machineRack element\n");
 		createButtons();
 		createEncoders();
 		createMasterVolume();
@@ -1714,75 +1733,141 @@ namespace mdJucePlugin
 		openSampleSlotMenu(samples, _ticket);
 	}
 
+	namespace
+	{
+		juce::String rateLabel(const uint32_t _rate)
+		{
+			static constexpr uint32_t standard[] = {8000, 11025, 16000, 22050, 32000, 44100, 48000};
+			auto rate = _rate;
+			for(const auto r : standard)
+				if(std::abs(static_cast<int>(_rate) - static_cast<int>(r)) <= static_cast<int>(r / 500))
+					rate = r;
+			return rate % 1000 == 0 ? juce::String(rate / 1000) + "k" : juce::String(rate / 1000.0, 1) + "k";
+		}
+
+		juce::String secondsLabel(const double _seconds)
+		{
+			return _seconds < 10.0 ? juce::String(_seconds, 2) + " s" : juce::String(_seconds, 1) + " s";
+		}
+	}
+
 	void Editor::openSampleSlotMenu(const std::shared_ptr<std::vector<sampleImport::DecodedSample>>& _samples, const md::SysexImportTicket& _ticket)
 	{
 		auto* const component = getRmlComponent();
 		auto* const document = component ? component->getDocument() : nullptr;
-		if(!document)
+		auto* const processor = dynamic_cast<AudioPluginAudioProcessor*>(&getProcessor());
+		if(!document || !processor)
 			return;
 
+		const auto directory = processor->readSampleDirectory();
 		const auto ledger = sampleImport::loadLedger(getProcessor().getConfig());
 		const auto count = static_cast<uint32_t>(_samples->size());
+		const auto isUsed = [&](const uint32_t _slot)
+		{
+			return directory ? directory->slots[_slot].used : ledger.find(_slot) != ledger.end();
+		};
 
-		// suggest the first run of free slots that fits all samples
-		uint32_t suggested = 0;
-		for(uint32_t first = 0; first + count <= sampleImport::g_slotCount; ++first)
+		// suggest the first run of empty slots that fits all samples, else the first empty slot
+		uint32_t suggested = sampleImport::g_slotCount;
+		for(uint32_t first = 0; first + count <= sampleImport::g_slotCount && suggested == sampleImport::g_slotCount; ++first)
 		{
 			bool free = true;
 			for(uint32_t i = 0; i < count && free; ++i)
-				free = ledger.find(first + i) == ledger.end();
+				free = !isUsed(first + i);
 			if(free)
-			{
 				suggested = first;
-				break;
-			}
 		}
+		for(uint32_t slot = 0; slot < sampleImport::g_slotCount && suggested == sampleImport::g_slotCount; ++slot)
+			if(!isUsed(slot) && slot + count <= sampleImport::g_slotCount)
+				suggested = slot;
+		if(suggested == sampleImport::g_slotCount)
+			suggested = 0;
 
 		juce::String title = count == 1
-			? juce::String("Load \"") + (*_samples)[0].name + "\" into slot:"
-			: "Load " + juce::String(count) + " samples starting at slot:";
+			? juce::String("Load \"") + juce::String((*_samples)[0].name).trimEnd() + "\" into:"
+			: "Load " + juce::String(count) + " samples starting at:";
+		if(directory)
+		{
+			const auto freeSeconds = static_cast<double>(directory->freeSectors) * md::sampleDirectory::g_continuationSectorFrames / 44100.0;
+			title += "   (" + juce::String(freeSeconds, 1) + " s free at 44.1k)";
+		}
 
 		juceRmlUi::Menu menu;
 		menu.addEntry(title.toStdString(), false, false, {});
 		const std::weak_ptr<void> lifetime = m_lifetimeToken;
 		for(uint32_t slot = 0; slot < sampleImport::g_slotCount; ++slot)
 		{
-			std::string label = sampleImport::slotLabel(slot);
-			if(const auto it = ledger.find(slot); it != ledger.end())
-				label += "  " + it->second.name;
+			juce::String label = sampleImport::slotLabel(slot);
+			if(directory)
+			{
+				const auto& s = directory->slots[slot];
+				if(s.used)
+					label += "  " + juce::String(s.name).trimEnd().paddedRight(' ', 4) + "  " + secondsLabel(s.seconds()) + "  " + rateLabel(s.sampleRate);
+				else
+					label += "  - empty -";
+			}
+			else if(const auto it = ledger.find(slot); it != ledger.end())
+				label += "  " + juce::String(it->second.name);
 			const bool fits = slot + count <= sampleImport::g_slotCount;
-			menu.addEntry(label, fits, slot == suggested, [lifetime, this, _samples, slot, _ticket]
+			menu.addEntry(label.toStdString(), fits, slot == suggested, [lifetime, this, _samples, slot, _ticket]
 			{
 				// run after the menu has closed
 				juce::MessageManager::callAsync([lifetime, this, _samples, slot, _ticket]
 				{
 					if(!lifetime.expired())
-						sendSamples(_samples, slot, _ticket);
+						confirmSampleSlots(_samples, slot, _ticket);
 				});
 			});
 		}
 		const auto size = component->getDocumentSize();
-		menu.runModal(document, Rml::Vector2f(static_cast<float>(size.x) * 0.25f, static_cast<float>(size.y) * 0.1f), 13);
+		menu.runModal(document, Rml::Vector2f(static_cast<float>(size.x) * 0.08f, static_cast<float>(size.y) * 0.05f), 13);
+	}
+
+	void Editor::confirmSampleSlots(const std::shared_ptr<std::vector<sampleImport::DecodedSample>>& _samples, const uint32_t _firstSlot, const md::SysexImportTicket& _ticket)
+	{
+		auto* const processor = dynamic_cast<AudioPluginAudioProcessor*>(&getProcessor());
+		const auto directory = processor ? processor->readSampleDirectory() : std::nullopt;
+
+		if(directory)
+		{
+			uint32_t needed = 0;
+			for(const auto& sample : *_samples)
+				needed += md::sampleDirectory::sectorsForFrames(static_cast<uint32_t>(sample.samples.size()));
+			uint32_t available = directory->freeSectors;
+			juce::String replaced;
+			for(size_t i = 0; i < _samples->size(); ++i)
+			{
+				const auto& s = directory->slots[_firstSlot + i];
+				if(!s.used)
+					continue;
+				available += s.sectors;
+				replaced += juce::String(sampleImport::slotLabel(_firstSlot + static_cast<uint32_t>(i))) + "  " + juce::String(s.name).trimEnd() + "\n";
+			}
+			if(needed > available)
+			{
+				const auto toSeconds = [](const uint32_t _sectors) { return juce::String(_sectors * static_cast<double>(md::sampleDirectory::g_continuationSectorFrames) / 44100.0, 1); };
+				showSampleError("Not enough sample memory. The selection needs about " + toSeconds(needed)
+					+ " s at 44.1 kHz, the machine has " + toSeconds(available) + " s available for these slots.");
+				return;
+			}
+			if(replaced.isNotEmpty())
+			{
+				const std::weak_ptr<void> lifetime = m_lifetimeToken;
+				genericUI::MessageBox::showYesNo(genericUI::MessageBox::Icon::Question, "Replace samples?",
+					("These slots already hold samples that will be replaced:\n\n" + replaced + "\nContinue?").toStdString(),
+					[lifetime, this, _samples, _firstSlot, _ticket](const genericUI::MessageBox::Result _result)
+					{
+						if(!lifetime.expired() && _result == genericUI::MessageBox::Result::Yes)
+							sendSamples(_samples, _firstSlot, _ticket);
+					});
+				return;
+			}
+		}
+		sendSamples(_samples, _firstSlot, _ticket);
 	}
 
 	void Editor::sendSamples(const std::shared_ptr<std::vector<sampleImport::DecodedSample>>& _samples, const uint32_t _firstSlot, const md::SysexImportTicket& _ticket)
 	{
-		auto& config = getProcessor().getConfig();
-		const auto ledger = sampleImport::loadLedger(config);
-
-		uint64_t words = 0;
-		for(const auto& sample : *_samples)
-			words += sample.samples.size();
-		const auto used = sampleImport::usedWords(ledger, _firstSlot, _samples->size());
-		if(used + words > sampleImport::g_sampleMemoryWords)
-		{
-			const auto seconds = [](const uint64_t _words) { return juce::String(static_cast<double>(_words) / 44100.0, 1); };
-			showSampleError("Not enough sample memory. The selection needs " + seconds(words) + " s (at 44.1 kHz), "
-				+ seconds(sampleImport::g_sampleMemoryWords - std::min(used, sampleImport::g_sampleMemoryWords))
-				+ " s are free, counting the samples loaded through this plugin into other slots.");
-			return;
-		}
-
 		auto stream = sampleImport::encode(*_samples, _firstSlot);
 		if(stream.empty())
 		{
