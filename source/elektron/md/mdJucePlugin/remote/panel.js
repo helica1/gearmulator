@@ -236,10 +236,8 @@
 	// ---- input ----
 
 	const activeButtons = new Map();	// pointerId -> element
-	let functionLatched = false;		// FUNCTION is sticky: tap to hold it, tap again to release
 
 	function functionHeld() {
-		if (functionLatched) return true;
 		for (const el of activeButtons.values()) if (el.dataset.control === 'Function') return true;
 		return false;
 	}
@@ -260,7 +258,6 @@
 	function releaseAll() {
 		activeButtons.forEach(function (el) { buttonUp(el); });
 		activeButtons.clear();
-		if (functionLatched) { functionLatched = false; const f = document.querySelector('[data-control="Function"]'); if (f) buttonUp(f); }
 		encoders.forEach(function (st) { if (st.held) { st.held = false; st.el.classList.remove('held'); send('p ' + st.el.dataset.encoder + ' 0'); } });
 		encoders.clear();
 		xyFingers.forEach(function (f) { if (f.marker) f.marker.remove(); });
@@ -271,12 +268,6 @@
 		document.querySelectorAll('[data-control]').forEach(function (el) {
 			el.addEventListener('pointerdown', function (ev) {
 				ev.preventDefault();
-				if (el.dataset.control === 'Function') {
-					// sticky: first tap holds FUNCTION down, the next tap releases it
-					functionLatched = !functionLatched;
-					if (functionLatched) buttonDown(el); else buttonUp(el);
-					return;
-				}
 				el.setPointerCapture(ev.pointerId);
 				activeButtons.set(ev.pointerId, el);
 				buttonDown(el);

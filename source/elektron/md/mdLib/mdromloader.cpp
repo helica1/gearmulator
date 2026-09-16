@@ -1,5 +1,7 @@
 #include "mdromloader.h"
 
+#include <cstdlib>
+
 namespace md
 {
 	Rom RomLoader::findROM()
@@ -47,6 +49,24 @@ namespace md
 		}
 
 		// Accept only a supported image for the requested product.
-		return isSupportedImage(_data.size(), fingerprint, _model);
+		if(isSupportedImage(_data.size(), fingerprint, _model))
+			return true;
+
+		// Opt-in: an alternative OS (community X.xx / EMS firmware) sitting on
+		// top of the stock boot loader. The boot loader occupies the first
+		// 16 KiB of flash, the OS starts at 0x4000, so only the loader is
+		// fingerprinted here.
+		const auto* allowAlt = std::getenv("GEARMULATOR_ALLOW_ALT_OS");
+		if(!allowAlt || !*allowAlt || *allowAlt == '0')
+			return false;
+		uint64_t bootFingerprint = 14695981039346656037ull;
+		for(size_t i = 0; i < 0x4000 && i < _data.size(); ++i)
+		{
+			bootFingerprint ^= _data[i];
+			bootFingerprint *= 1099511628211ull;
+		}
+		return _model == MachineModel::Monomachine
+			? bootFingerprint == 0x6ddfe20a3c9c1517ull
+			: bootFingerprint == 0x17b4e9af660cd177ull;
 	}
 }
