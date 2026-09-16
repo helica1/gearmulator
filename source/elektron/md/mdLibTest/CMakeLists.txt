@@ -298,3 +298,14 @@ set_property(TARGET mdLinkTapTest PROPERTY FOLDER "Elektron")
 add_executable(mdAudioCaptureTool mdAudioCaptureTool.cpp)
 target_link_libraries(mdAudioCaptureTool PRIVATE mdLib)
 set_property(TARGET mdAudioCaptureTool PROPERTY FOLDER "Elektron")
+
+add_executable(mdSdsEncodeTest sdsEncodeTest.cpp)
+target_link_libraries(mdSdsEncodeTest PRIVATE mdLib)
+add_test(NAME mdSdsEncodeTest COMMAND mdSdsEncodeTest)
+set_tests_properties(mdSdsEncodeTest PROPERTIES LABELS "UnitTest;Midi" TIMEOUT 15)
+set_property(TARGET mdSdsEncodeTest PROPERTY FOLDER "Elektron/test")
+
+# Diagnostic tool, not a test: checks which SDS sample rates the Machinedrum plays back at true pitch.
+add_executable(mdSampleRateProbe mdSampleRateProbe.cpp)
+target_link_libraries(mdSampleRateProbe PRIVATE mdLib)
+set_property(TARGET mdSampleRateProbe PROPERTY FOLDER "Elektron")

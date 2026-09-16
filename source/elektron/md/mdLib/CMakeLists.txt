@@ -23,6 +23,7 @@ set(SOURCES
 	mdrealtimemidiqueue.h
 	mdpanel.cpp mdpanel.h
 	mdremotepanel.cpp mdremotepanel.h
+	mdsdsencode.cpp mdsdsencode.h
 	mdsim.cpp mdsim.h
 	mdrom.cpp mdrom.h
 	mdromdata.cpp mdromdata.h

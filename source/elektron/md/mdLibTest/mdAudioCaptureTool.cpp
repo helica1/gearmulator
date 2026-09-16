@@ -156,8 +156,6 @@ int main(const int argc, char* argv[])
 		outputs[c] = chan[c].data();
 
 	const uint32_t total = md::g_samplerate * seconds;
-	const auto jit1Before = hardware.getDspMixer().dsp().getJit().getStats();
-	const auto jit2Before = hardware.getDspProducer().dsp().getJit().getStats();
 	const auto dsp1Before = hardware.getDspMixer().dsp().getInstructionCounter();
 	const auto dsp2Before = hardware.getDspProducer().dsp().getInstructionCounter();
 	const auto ucBefore = hardware.getUC().getCycles();
@@ -186,15 +184,6 @@ int main(const int argc, char* argv[])
 	const auto uc = hardware.getUC().getCycles() - ucBefore;
 	std::cerr << "work per emulated second: DSP1 " << dsp1 / seconds << " instr, DSP2 " << dsp2 / seconds
 		<< " instr, UC " << uc / seconds << " cycles\n";
-	const auto jit1 = hardware.getDspMixer().dsp().getJit().getStats();
-	const auto jit2 = hardware.getDspProducer().dsp().getJit().getStats();
-	std::cerr << "JIT during render: DSP1 created " << jit1.blocksCreated - jit1Before.blocksCreated
-		<< " destroyed " << jit1.blocksDestroyed - jit1Before.blocksDestroyed << " pWrites " << jit1.programMemWrites - jit1Before.programMemWrites
-		<< " volatileP " << jit1.volatilePAddresses << " | DSP2 created " << jit2.blocksCreated - jit2Before.blocksCreated
-		<< " destroyed " << jit2.blocksDestroyed - jit2Before.blocksDestroyed << " pWrites " << jit2.programMemWrites - jit2Before.programMemWrites
-		<< " volatileP " << jit2.volatilePAddresses << "\n";
-	std::cerr << "JIT since boot: DSP1 created " << jit1.blocksCreated << " destroyed " << jit1.blocksDestroyed
-		<< " | DSP2 created " << jit2.blocksCreated << " destroyed " << jit2.blocksDestroyed << "\n";
 	std::cerr << "block timing: blocks=" << blocks << " mean=" << sumMs / blocks << "ms max=" << maxMs
 		<< "ms budget=" << budgetMs << "ms over=" << over << " over2x=" << over2 << "\n  ms per emulated second:";
 	for(const auto v : perSecond) std::cerr << ' ' << static_cast<int>(v);
