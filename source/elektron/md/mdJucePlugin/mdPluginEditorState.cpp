@@ -91,6 +91,18 @@ namespace mdJucePlugin
 			return;
 
 		const bool active = editor->isUserSysexTransferActive();
+		if(processor.getModel() == md::MachineModel::Machinedrum)
+		{
+			_menu.addEntry("Load Samples (WAV, AIFF)...", !active, false, [editor]
+			{
+				const auto lifetime = editor->getLifetimeToken();
+				juce::MessageManager::callAsync([lifetime, editor]
+				{
+					if(!lifetime.expired())
+						editor->chooseSampleFiles();
+				});
+			});
+		}
 		if(editor->canResumeUserSysexTransfer())
 			_menu.addEntry("Resume SysEx Transfer - machine is ready", true, false,
 				[editor] { editor->resumeUserSysexTransfer(); });

@@ -98,7 +98,7 @@ namespace juceRmlUi
 
 	void DragTarget::onDragOver(const Rml::Event& _event)
 	{
-		if (_event.GetTargetElement() != _event.GetCurrentElement())
+		if (!m_acceptDragsOverChildren && _event.GetTargetElement() != _event.GetCurrentElement())
 			return;
 
 		auto* dragSource = helper::getDragSource(_event);
@@ -125,7 +125,9 @@ namespace juceRmlUi
 
 	void DragTarget::onDragOut(const Rml::Event& _event)
 	{
-		if (_event.GetTargetElement() != _event.GetCurrentElement())
+		// moving between descendants produces dragout/dragover pairs; the following
+		// dragover re-arms the target, so leaving any descendant may stop the drag here
+		if (!m_acceptDragsOverChildren && _event.GetTargetElement() != _event.GetCurrentElement())
 			return;
 		stopDrag();
 	}

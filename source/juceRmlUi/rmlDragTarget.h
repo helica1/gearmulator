@@ -68,6 +68,13 @@ namespace juceRmlUi
 			m_allowShift = _shift;
 		}
 
+		// By default only drags whose innermost hovered element is the target element itself
+		// are considered. A container (e.g. a whole panel) can accept drags over any descendant.
+		void setAcceptDragsOverChildren(const bool _accept)
+		{
+			m_acceptDragsOverChildren = _accept;
+		}
+
 		static DragTarget* fromElement(const Rml::Element* _elem);
 
 		virtual void drop(const Rml::Event& _event, const DragSource* _source, const DragData* _data) {}
@@ -97,6 +104,7 @@ namespace juceRmlUi
 		bool m_allowLocationVertical = true;
 		bool m_allowLocationHorizontal = true;
 		bool m_allowShift = true;
+		bool m_acceptDragsOverChildren = false;
 
 		bool m_shiftDown = false;
 

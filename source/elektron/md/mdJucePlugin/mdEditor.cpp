@@ -5,6 +5,7 @@
 #include "mdPluginProcessor.h"
 #include "mdSettingsAudioInput.h"
 #include "mdSettingsPanelFeel.h"
+#include "mdSampleDropTarget.h"
 #include "mdPixelPerfectPanel.h"
 #include "mdLcdViewport.h"
 
@@ -32,6 +33,7 @@
 #include "juceRmlUi/rmlEventListener.h"
 #include "juceRmlUi/rmlHelper.h"
 #include "juceRmlUi/juceRmlComponent.h"
+#include "juceRmlUi/rmlMenu.h"
 
 #include "RmlUi/Core/Element.h"
 #include "RmlUi/Core/ElementDocument.h"
@@ -280,6 +282,8 @@ namespace mdJucePlugin
 
 		createLcd();
 		bindSettingsButton();
+		if(auto* const document = getRmlComponent() ? getRmlComponent()->getDocument() : nullptr)
+			m_sampleDropTarget = std::make_unique<SampleDropTarget>(document, *this);
 		createButtons();
 		createEncoders();
 		createMasterVolume();
@@ -1566,6 +1570,15 @@ namespace mdJucePlugin
 			return;
 		}
 
+		const auto ticket = beginUserSysexTicket();
+		if(!ticket)
+			return;
+		m_sysexChooserOpen = true;
+		launchUserSysexFileChooser(*ticket);
+	}
+
+	std::optional<md::SysexImportTicket> Editor::beginUserSysexTicket()
+	{
 		const auto ticket = getProcessor().getPlugin().withDeviceLocked(
 			[](synthLib::Device* base) -> std::optional<md::SysexImportTicket>
 			{
@@ -1573,12 +1586,223 @@ namespace mdJucePlugin
 				return device ? device->beginUserSysexImport() : std::nullopt;
 			});
 		if(!ticket)
-		{
 			showUserSysexError("The machine is unavailable, restoring state, or already receiving a file. Try again when it is ready.");
+		return ticket;
+	}
+
+	void Editor::chooseSampleFiles()
+	{
+		if(m_model != md::MachineModel::Machinedrum)
+			return;
+		if(m_sysexChooserOpen)
+		{
+			showSampleError("Finish the open file dialog first.");
 			return;
 		}
+		if(isUserSysexTransferActive())
+		{
+			showSampleError("A transfer is already running. Wait for it to finish or cancel it.");
+			return;
+		}
+		const auto ticket = beginUserSysexTicket();
+		if(!ticket)
+			return;
+
+		auto& config = getProcessor().getConfig();
+		juce::File initial(config.getValue("mdSampleLastDirectory"));
+		if(!initial.isDirectory())
+			initial = juce::File::getSpecialLocation(juce::File::userMusicDirectory);
 		m_sysexChooserOpen = true;
-		launchUserSysexFileChooser(*ticket);
+		m_sampleFileChooser = std::make_unique<juce::FileChooser>(
+			"Load samples into the Machinedrum", initial,
+			"*.wav;*.WAV;*.aif;*.aiff;*.AIF;*.AIFF;*.mp3;*.m4a;*.caf", true);
+		const std::weak_ptr<void> lifetime = m_lifetimeToken;
+		const auto t = *ticket;
+		m_sampleFileChooser->launchAsync(
+			juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles
+				| juce::FileBrowserComponent::canSelectMultipleItems,
+			[lifetime, this, t](const juce::FileChooser& _chooser)
+			{
+				if(lifetime.expired())
+					return;
+				m_sysexChooserOpen = false;
+				std::vector<juce::File> files;
+				for(const auto& file : _chooser.getResults())
+					if(file.existsAsFile())
+						files.push_back(file);
+				if(!files.empty())
+					importSampleFiles(files, t);
+			});
+	}
+
+	void Editor::importDroppedFiles(const std::vector<std::string>& _files)
+	{
+		if(_files.empty())
+			return;
+		if(m_sysexChooserOpen)
+		{
+			showSampleError("Finish the open file dialog first.");
+			return;
+		}
+		if(isUserSysexTransferActive())
+		{
+			showSampleError("A transfer is already running. Wait for it to finish or cancel it.");
+			return;
+		}
+		std::vector<juce::File> files;
+		for(const auto& path : _files)
+			files.emplace_back(juce::String(path));
+
+		if(files.size() == 1 && sampleImport::isSysexFile(files.front()))
+		{
+			const auto ticket = beginUserSysexTicket();
+			if(ticket)
+				sendUserSysexFile(files.front(), *ticket);
+			return;
+		}
+		if(m_model != md::MachineModel::Machinedrum)
+		{
+			showSampleError("Audio samples can only be loaded into the Machinedrum UW. The Monomachine takes DigiPRO waveforms as SysEx files.");
+			return;
+		}
+		const auto ticket = beginUserSysexTicket();
+		if(ticket)
+			importSampleFiles(files, *ticket);
+	}
+
+	void Editor::importSampleFiles(const std::vector<juce::File>& _files, const md::SysexImportTicket& _ticket)
+	{
+		auto samples = std::make_shared<std::vector<sampleImport::DecodedSample>>();
+		juce::String problems;
+		for(const auto& file : _files)
+		{
+			std::string error;
+			auto decoded = sampleImport::decode(file, error);
+			if(!decoded)
+			{
+				problems += file.getFileName() + ": " + juce::String(error) + "\n";
+				continue;
+			}
+			samples->push_back(std::move(*decoded));
+		}
+		if(samples->empty())
+		{
+			showSampleError("No sample could be loaded.\n\n" + problems);
+			return;
+		}
+		if(samples->size() > sampleImport::g_slotCount)
+		{
+			showSampleError("At most 48 samples can be loaded at once.");
+			return;
+		}
+
+		auto& config = getProcessor().getConfig();
+		config.setValue("mdSampleLastDirectory", _files.front().getParentDirectory().getFullPathName());
+		config.saveIfNeeded();
+
+		if(problems.isNotEmpty())
+		{
+			const std::weak_ptr<void> lifetime = m_lifetimeToken;
+			genericUI::MessageBox::showOk(genericUI::MessageBox::Icon::Warning, "Some files were skipped",
+				problems.toStdString(), getRmlComponent(), [lifetime, this, samples, _ticket]
+				{
+					if(!lifetime.expired())
+						openSampleSlotMenu(samples, _ticket);
+				});
+			return;
+		}
+		openSampleSlotMenu(samples, _ticket);
+	}
+
+	void Editor::openSampleSlotMenu(const std::shared_ptr<std::vector<sampleImport::DecodedSample>>& _samples, const md::SysexImportTicket& _ticket)
+	{
+		auto* const component = getRmlComponent();
+		auto* const document = component ? component->getDocument() : nullptr;
+		if(!document)
+			return;
+
+		const auto ledger = sampleImport::loadLedger(getProcessor().getConfig());
+		const auto count = static_cast<uint32_t>(_samples->size());
+
+		// suggest the first run of free slots that fits all samples
+		uint32_t suggested = 0;
+		for(uint32_t first = 0; first + count <= sampleImport::g_slotCount; ++first)
+		{
+			bool free = true;
+			for(uint32_t i = 0; i < count && free; ++i)
+				free = ledger.find(first + i) == ledger.end();
+			if(free)
+			{
+				suggested = first;
+				break;
+			}
+		}
+
+		juce::String title = count == 1
+			? juce::String("Load \"") + (*_samples)[0].name + "\" into slot:"
+			: "Load " + juce::String(count) + " samples starting at slot:";
+
+		juceRmlUi::Menu menu;
+		menu.addEntry(title.toStdString(), false, false, {});
+		const std::weak_ptr<void> lifetime = m_lifetimeToken;
+		for(uint32_t slot = 0; slot < sampleImport::g_slotCount; ++slot)
+		{
+			std::string label = sampleImport::slotLabel(slot);
+			if(const auto it = ledger.find(slot); it != ledger.end())
+				label += "  " + it->second.name;
+			const bool fits = slot + count <= sampleImport::g_slotCount;
+			menu.addEntry(label, fits, slot == suggested, [lifetime, this, _samples, slot, _ticket]
+			{
+				// run after the menu has closed
+				juce::MessageManager::callAsync([lifetime, this, _samples, slot, _ticket]
+				{
+					if(!lifetime.expired())
+						sendSamples(_samples, slot, _ticket);
+				});
+			});
+		}
+		const auto size = component->getDocumentSize();
+		menu.runModal(document, Rml::Vector2f(static_cast<float>(size.x) * 0.25f, static_cast<float>(size.y) * 0.1f), 13);
+	}
+
+	void Editor::sendSamples(const std::shared_ptr<std::vector<sampleImport::DecodedSample>>& _samples, const uint32_t _firstSlot, const md::SysexImportTicket& _ticket)
+	{
+		auto& config = getProcessor().getConfig();
+		const auto ledger = sampleImport::loadLedger(config);
+
+		uint64_t words = 0;
+		for(const auto& sample : *_samples)
+			words += sample.samples.size();
+		const auto used = sampleImport::usedWords(ledger, _firstSlot, _samples->size());
+		if(used + words > sampleImport::g_sampleMemoryWords)
+		{
+			const auto seconds = [](const uint64_t _words) { return juce::String(static_cast<double>(_words) / 44100.0, 1); };
+			showSampleError("Not enough sample memory. The selection needs " + seconds(words) + " s (at 44.1 kHz), "
+				+ seconds(sampleImport::g_sampleMemoryWords - std::min(used, sampleImport::g_sampleMemoryWords))
+				+ " s are free, counting the samples loaded through this plugin into other slots.");
+			return;
+		}
+
+		auto stream = sampleImport::encode(*_samples, _firstSlot);
+		if(stream.empty())
+		{
+			showSampleError("The samples could not be encoded.");
+			return;
+		}
+
+		PendingSampleSlots pending;
+		pending.ticket = _ticket;
+		for(size_t i = 0; i < _samples->size(); ++i)
+			pending.slots[_firstSlot + static_cast<uint32_t>(i)] = sampleImport::SlotInfo{(*_samples)[i].name, (*_samples)[i].samples.size()};
+		m_pendingSampleSlots = std::move(pending);
+
+		sendUserSysexBytes(std::move(stream), juce::File((*_samples)[0].sourcePath), _ticket);
+	}
+
+	void Editor::showSampleError(const juce::String& _message)
+	{
+		genericUI::MessageBox::showOk(genericUI::MessageBox::Icon::Warning,
+			"Samples not loaded", _message.toStdString(), getRmlComponent());
 	}
 
 	void Editor::launchUserSysexFileChooser(const md::SysexImportTicket& ticket)
@@ -1631,6 +1855,11 @@ namespace mdJucePlugin
 
 		const auto* const begin = static_cast<const uint8_t*>(fileData.getData());
 		std::vector<uint8_t> bytes(begin, begin + fileData.getSize());
+		sendUserSysexBytes(std::move(bytes), _file, ticket);
+	}
+
+	void Editor::sendUserSysexBytes(std::vector<uint8_t>&& bytes, const juce::File& _file, const md::SysexImportTicket& ticket)
+	{
 		md::MidiSysexStreamValidation validation{};
 		auto prepared = md::prepareMidiSysexTransfer(std::move(bytes), m_model, &validation);
 		if(!prepared)
@@ -1798,7 +2027,29 @@ namespace mdJucePlugin
 			});
 		// Destruction remains outside the device lock and therefore outside any
 		// interval in which it can block the real-time process callback.
-		if(progress && progress->state == md::MidiSysexTransferState::Complete)
+		auto pendingSamples = std::move(m_pendingSampleSlots);
+		m_pendingSampleSlots.reset();
+		if(pendingSamples && progress && progress->ticket != pendingSamples->ticket)
+			pendingSamples.reset();
+
+		if(progress && progress->state == md::MidiSysexTransferState::Complete && pendingSamples)
+		{
+			auto& config = getProcessor().getConfig();
+			auto ledger = sampleImport::loadLedger(config);
+			juce::String loaded;
+			for(const auto& [slot, info] : pendingSamples->slots)
+			{
+				ledger[slot] = info;
+				loaded += juce::String(sampleImport::slotLabel(slot)) + "  " + juce::String(info.name).trimEnd() + "\n";
+			}
+			sampleImport::saveLedger(config, ledger);
+			const auto firstSlot = pendingSamples->slots.begin()->first;
+			genericUI::MessageBox::showOk(genericUI::MessageBox::Icon::Info, "Samples loaded",
+				(loaded + "\nPlay a slot with the ROM machine of the same number, e.g. ROM-"
+					+ juce::String(firstSlot + 1).paddedLeft('0', 2) + " for " + juce::String(sampleImport::slotLabel(firstSlot))
+					+ ". Wait for any CLEANING/LOADING display to finish first.").toStdString(), getRmlComponent());
+		}
+		else if(progress && progress->state == md::MidiSysexTransferState::Complete)
 		{
 			juce::String message = "Every byte reached the emulated MIDI input. "
 				"Check the machine display for the firmware's import result.";
