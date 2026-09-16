@@ -164,8 +164,10 @@
 	// ---- input ----
 
 	const activeButtons = new Map();	// pointerId -> element
+	let functionLatched = false;		// FUNCTION is sticky: tap to hold it, tap again to release
 
 	function functionHeld() {
+		if (functionLatched) return true;
 		for (const el of activeButtons.values()) if (el.dataset.control === 'Function') return true;
 		return false;
 	}
@@ -185,6 +187,7 @@
 	function releaseAll() {
 		activeButtons.forEach(function (el) { el.classList.remove('down'); });
 		activeButtons.clear();
+		if (functionLatched) { functionLatched = false; const f = document.querySelector('[data-control="Function"]'); if (f) f.classList.remove('down'); }
 		encoders.forEach(function (st) { if (st.held) { st.held = false; st.el.classList.remove('held'); } });
 		encoders.clear();
 		xyFingers.forEach(function (f) { if (f.marker) f.marker.remove(); });
@@ -195,6 +198,12 @@
 		document.querySelectorAll('[data-control]').forEach(function (el) {
 			el.addEventListener('pointerdown', function (ev) {
 				ev.preventDefault();
+				if (el.dataset.control === 'Function') {
+					// sticky: first tap holds FUNCTION down, the next tap releases it
+					functionLatched = !functionLatched;
+					if (functionLatched) buttonDown(el); else buttonUp(el);
+					return;
+				}
 				el.setPointerCapture(ev.pointerId);
 				activeButtons.set(ev.pointerId, el);
 				buttonDown(el);
@@ -321,8 +330,15 @@
 			return { x: (ev.clientX - r.left) / stageScale, y: (ev.clientY - r.top) / stageScale };
 		};
 
+		let lastTap = 0;
 		area.addEventListener('pointerdown', function (ev) {
 			ev.preventDefault();
+			// double tap with one finger leaves XY mode
+			if (xyFingers.size === 0) {
+				const now = Date.now();
+				if (now - lastTap < 300) { lastTap = 0; toggle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: false })); return; }
+				lastTap = now;
+			}
 			const slot = freeSlot();
 			if (slot < 0) return;
 			area.setPointerCapture(ev.pointerId);

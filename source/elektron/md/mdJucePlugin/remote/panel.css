@@ -131,8 +131,8 @@ html, body {
 .xyToggle { width: 36px; height: 18px; line-height: 18px; text-align: center; font-size: 10px; font-weight: bold; letter-spacing: 1px;
 	color: #ece5d8; background: #6b382e; border: 1px solid #5b2d25; border-radius: 2px; z-index: 6; }
 .xyToggle.on { background: #d05f3d; color: #21170f; }
-.xy { position: absolute; left: 0; top: 0; width: 1100px; height: 570px; z-index: 5; background: #0b0c0bcc; }
+.xy { position: absolute; left: 129px; top: 36px; width: 949px; height: 275px; z-index: 5; background: #0b0c0bcc; border: 2px dashed #d05f3d; }
 .xy.hidden { display: none; }
-.xyHint { position: absolute; left: 0; right: 0; top: 40px; text-align: center; color: #d0d1cc; font-size: 16px; pointer-events: none; }
+.xyHint { position: absolute; left: 0; right: 0; top: 8px; text-align: center; color: #d0d1cc; font-size: 13px; pointer-events: none; }
 .xyFinger { position: absolute; width: 90px; height: 90px; margin: -45px 0 0 -45px; border-radius: 50%; border: 3px solid #f0a06c;
 	background: #f0a06c33; color: #ffe8d6; font-size: 22px; font-weight: bold; text-align: center; line-height: 84px; pointer-events: none; }
