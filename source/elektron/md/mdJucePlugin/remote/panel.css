@@ -134,7 +134,12 @@ html, body {
 
 /* XY multitouch pad: permanent, each finger drives two DATA ENTRY encoders */
 .xyPad { background: #0b0c0b; border: 1px dashed #d05f3d99; border-radius: 4px; overflow: visible; z-index: 5; }
-.xyHint { position: absolute; left: 0; right: 0; top: 2px; text-align: center; color: #8a8c86; font-size: 9px; letter-spacing: 1px; pointer-events: none; }
+.xyZone { position: absolute; top: 0; bottom: 0; width: 25%; box-sizing: border-box; border-left: 1px dashed #d05f3d55; pointer-events: none; }
+.xyZone:first-child { border-left: none; }
+.xyZone.active { background: #d05f3d22; }
+.xyZoneLabel { position: absolute; left: 0; right: 0; top: 50%; margin-top: -9px; height: 18px; line-height: 18px; text-align: center;
+	color: #8a8c86; font-size: 13px; font-weight: bold; letter-spacing: 2px; }
+.xyZone.active .xyZoneLabel { color: #f0a06c; }
 .xyFinger { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; border: 3px solid #f0a06c;
 	background: #f0a06c33; color: #ffe8d6; font-size: 14px; font-weight: bold; text-align: center; line-height: 50px; pointer-events: none; z-index: 7; }
 .switchMachine { width: 44px; height: 16px; line-height: 16px; text-align: center; font-size: 9px; font-weight: bold; letter-spacing: 1px;

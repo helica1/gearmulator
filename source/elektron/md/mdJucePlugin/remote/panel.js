@@ -262,6 +262,7 @@
 		encoders.clear();
 		xyFingers.forEach(function (f) { if (f.marker) f.marker.remove(); });
 		xyFingers.clear();
+		updateXyZones();
 	}
 
 	function bindButtons() {
@@ -382,34 +383,57 @@
 		});
 	}
 
-	// ---- XY pad: finger n moves encoder A+n left/right and E+n up/down, in the order the fingers land ----
+	// ---- XY pad: four equal zones AE, BF, CG, DH from left to right. A finger controls the pair of
+	// the zone it lands in (left/right = top-row encoder, up/down = bottom-row encoder) and keeps
+	// that pair while it moves, even across zone borders. ----
 
 	const xyFingers = new Map();	// pointerId -> { slot, x, y, accX, accY, marker }
 	const xyArea = document.getElementById('xy');
+	const xyZones = [];
+
+	function updateXyZones() {
+		const active = [0, 0, 0, 0];
+		xyFingers.forEach(function (f) { ++active[f.slot]; });
+		xyZones.forEach(function (zone, i) { zone.classList.toggle('active', active[i] > 0); });
+	}
 
 	function bindXy() {
 		const area = xyArea;
-		const freeSlot = function () {
-			const used = new Set(); xyFingers.forEach(function (f) { used.add(f.slot); });
-			for (let s = 0; s < 4; ++s) if (!used.has(s)) return s;
-			return -1;
-		};
+		const hint = area.querySelector('.xyHint');
+		if (hint) hint.remove();
+		for (let i = 0; i < 4; ++i) {
+			const zone = document.createElement('div');
+			zone.className = 'xyZone';
+			zone.style.left = (i * 25) + '%';
+			const label = document.createElement('div');
+			label.className = 'xyZoneLabel';
+			label.textContent = LETTERS[i] + LETTERS[i + 4];
+			zone.appendChild(label);
+			area.appendChild(zone);
+			xyZones.push(zone);
+		}
+
 		const toPanel = function (ev) {
 			const r = area.getBoundingClientRect();
 			return { x: (ev.clientX - r.left) / stageScale, y: (ev.clientY - r.top) / stageScale };
 		};
+		const zoneOf = function (ev) {
+			const r = area.getBoundingClientRect();
+			const u = r.width > 0 ? (ev.clientX - r.left) / r.width : 0;
+			return Math.max(0, Math.min(3, Math.floor(u * 4)));
+		};
 
 		area.addEventListener('pointerdown', function (ev) {
 			ev.preventDefault();
-			const slot = freeSlot();
-			if (slot < 0) return;
-			area.setPointerCapture(ev.pointerId);
+			const slot = zoneOf(ev);
+			try { area.setPointerCapture(ev.pointerId); } catch (e) { }
 			const p = toPanel(ev);
 			const marker = document.createElement('div'); marker.className = 'xyFinger';
-			marker.textContent = LETTERS[slot] + '/' + LETTERS[slot + 4];
+			marker.textContent = LETTERS[slot] + LETTERS[slot + 4];
 			marker.style.left = p.x + 'px'; marker.style.top = p.y + 'px';
 			area.appendChild(marker);
 			xyFingers.set(ev.pointerId, { slot: slot, x: ev.clientX, y: ev.clientY, accX: 0, accY: 0, marker: marker });
+			updateXyZones();
 		});
 		area.addEventListener('pointermove', function (ev) {
 			const f = xyFingers.get(ev.pointerId);
@@ -427,6 +451,7 @@
 			if (!f) return;
 			xyFingers.delete(ev.pointerId);
 			if (f.marker) f.marker.remove();
+			updateXyZones();
 		};
 		area.addEventListener('pointerup', up);
 		area.addEventListener('pointercancel', up);
