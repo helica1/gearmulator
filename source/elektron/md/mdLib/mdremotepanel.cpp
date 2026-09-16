@@ -1,4 +1,5 @@
 #include "mdremotepanel.h"
+#include "mdmidiprotocol.h"
 
 #include "networkLib/exception.h"
 #include "networkLib/logging.h"
@@ -480,6 +481,23 @@ namespace md
 			std::lock_guard lock(m_clientsMutex);
 			for(auto& c : m_clients)
 				c->lastState.clear();
+			return;
+		}
+
+		if(type == "t")
+		{
+			int track = 0;
+			ss >> track;
+			if(m_callbacks.sendSysex && m_model == MachineModel::Machinedrum)
+			{
+				const auto body = midiProtocol::selectTrack(track);
+				std::vector<uint8_t> sysex;
+				sysex.reserve(body.size() + 2);
+				sysex.push_back(0xf0);
+				sysex.insert(sysex.end(), body.begin(), body.end());
+				sysex.push_back(0xf7);
+				m_callbacks.sendSysex(sysex);
+			}
 			return;
 		}
 

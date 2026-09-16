@@ -92,12 +92,9 @@ html, body {
 .knob .cap { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 50%;
 	background: url(elektronKnobBlankAtlas.png) 0 0 / 800% 600% no-repeat;
 	box-shadow: inset -1px -2px 0 0 #ffffff1e, inset 2px 2px 0 0 #00000038, 2px 3px 4px -1px #00000048; }
-.knob .cap::after { content: ""; position: absolute; left: 50%; top: 4px; width: 3px; height: 12px; margin-left: -1.5px; border-radius: 2px; background: #e8e6df; }
 .knob.master .cap { background: url(elektronMasterKnobAtlas.png) 0 0 / 800% 600% no-repeat; }
-.knob.master .cap::after { display: none; }
 .knob.wheel { width: 164px; height: 164px; }
 .knob.wheel .cap { background: url(mdSoundWheel.png) 0 0 / 800% 600% no-repeat; }
-.knob.wheel .cap::after { top: 12px; width: 5px; height: 26px; margin-left: -2.5px; background: #d9d7cf; }
 .knob.held .cap { opacity: 0.75; }
 
 /* display */
@@ -129,3 +126,13 @@ html, body {
 /* overlay */
 #overlay { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: #000000aa; color: #eee; display: flex; align-items: center; justify-content: center; font-size: 20px; z-index: 10; }
 #overlay.hidden { display: none; }
+
+/* XY multitouch mode */
+.xyToggle { width: 36px; height: 18px; line-height: 18px; text-align: center; font-size: 10px; font-weight: bold; letter-spacing: 1px;
+	color: #ece5d8; background: #6b382e; border: 1px solid #5b2d25; border-radius: 2px; z-index: 6; }
+.xyToggle.on { background: #d05f3d; color: #21170f; }
+.xy { position: absolute; left: 0; top: 0; width: 1100px; height: 570px; z-index: 5; background: #0b0c0bcc; }
+.xy.hidden { display: none; }
+.xyHint { position: absolute; left: 0; right: 0; top: 40px; text-align: center; color: #d0d1cc; font-size: 16px; pointer-events: none; }
+.xyFinger { position: absolute; width: 90px; height: 90px; margin: -45px 0 0 -45px; border-radius: 50%; border: 3px solid #f0a06c;
+	background: #f0a06c33; color: #ffe8d6; font-size: 22px; font-weight: bold; text-align: center; line-height: 84px; pointer-events: none; }

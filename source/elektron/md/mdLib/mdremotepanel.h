@@ -31,6 +31,7 @@ namespace md
 		                        b <PanelControl name> <1|0>    button press / release
 		                        e <PanelEncoder name> <delta>  encoder turned, signed step count
 		                        p <PanelEncoder name> <1|0>    encoder pushed / released
+		                        t <track 0..15>                select a track (Machinedrum, via sysex)
 		                        hello                          ask for the current state right away
 	*/
 	class RemotePanelServer
@@ -40,6 +41,8 @@ namespace md
 		{
 			std::function<bool(uint8_t _command, uint8_t _argument)> sendPanelEvent;
 			std::function<FrontPanel()> snapshot;
+			// complete sysex message including F0/F7, sent to the machine's MIDI in
+			std::function<void(const std::vector<uint8_t>&)> sendSysex;
 			// path without leading slash -> content. Returns false when unknown.
 			std::function<bool(const std::string& _path, std::string& _data, std::string& _mime)> resource;
 		};

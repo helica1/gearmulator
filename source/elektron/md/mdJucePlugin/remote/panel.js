@@ -8,10 +8,11 @@
 	const LED_BANK_FIRST = 0x20;
 	const STATE_HEADER = 2;
 	const VRAM_SIZE = 2 * 8 * 64;
+	const LETTERS = 'ABCDEFGH';
 
 	let socket = null;
 	let reconnectTimer = null;
-	let sendQueue = [];
+	let recordLit = false;		// grid recording: trig keys edit steps, so no auto track select then
 
 	// ---- build the repeated parts of the panel ----
 
@@ -24,22 +25,22 @@
 				const cell = document.createElement('div'); cell.className = 'cell';
 				const led = document.createElement('div'); led.className = 'led'; led.id = 'drumLed' + t;
 				const name = document.createElement('div'); name.className = 'name'; name.textContent = TRACK_NAMES[t];
+				name.dataset.track = String(t);
 				cell.appendChild(led); cell.appendChild(name); r.appendChild(cell);
 			}
 			sound.appendChild(r);
 		}
 
 		const data = document.getElementById('dataEntry');
-		const letters = 'ABCDEFGH';
 		for (let row = 0; row < 2; ++row) {
 			const r = document.createElement('div'); r.className = 'row';
 			for (let i = 0; i < 4; ++i) {
 				const k = row * 4 + i;
 				const cell = document.createElement('div'); cell.className = 'cell';
-				const knob = document.createElement('div'); knob.className = 'knob'; knob.id = 'enc' + letters[k];
-				knob.dataset.encoder = 'DataEntry' + letters[k];
+				const knob = document.createElement('div'); knob.className = 'knob'; knob.id = 'enc' + LETTERS[k];
+				knob.dataset.encoder = 'DataEntry' + LETTERS[k];
 				const cap = document.createElement('div'); cap.className = 'cap'; knob.appendChild(cap);
-				const caption = document.createElement('div'); caption.className = 'caption'; caption.textContent = letters[k];
+				const caption = document.createElement('div'); caption.className = 'caption'; caption.textContent = LETTERS[k];
 				cell.appendChild(knob); cell.appendChild(caption); r.appendChild(cell);
 			}
 			data.appendChild(r);
@@ -50,6 +51,7 @@
 			const cell = document.createElement('div'); cell.className = 'cell';
 			const led = document.createElement('div'); led.className = 'led'; led.id = 'stepLed' + i;
 			const trig = document.createElement('div'); trig.className = 'trig'; trig.dataset.control = 'Trigger' + (i + 1);
+			trig.dataset.track = String(i);
 			const legend = document.createElement('div'); legend.className = 'legend' + ((i % 4) === 0 ? ' primary' : '');
 			const num = document.createElement('div'); num.className = 'num'; num.textContent = String(i + 1);
 			const name = document.createElement('div'); name.className = 'name'; name.textContent = TRACK_NAMES[i];
@@ -60,12 +62,14 @@
 
 	// ---- scaling to the screen ----
 
+	let stageScale = 1;
+
 	function layout() {
 		const stage = document.getElementById('stage');
 		const w = window.innerWidth, h = window.innerHeight;
-		const scale = Math.min(w / 1100, h / 570);
-		const x = Math.floor((w - 1100 * scale) / 2), y = Math.floor((h - 570 * scale) / 2);
-		stage.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + scale + ')';
+		stageScale = Math.min(w / 1100, h / 570);
+		const x = Math.floor((w - 1100 * stageScale) / 2), y = Math.floor((h - 570 * stageScale) / 2);
+		stage.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + stageScale + ')';
 	}
 
 	// ---- connection ----
@@ -151,7 +155,8 @@
 		setLit('ledExtended', lit(0x23, 1));
 		setLit('ledBankAD', lit(0x23, 2));
 		setLit('ledBankEH', lit(0x23, 3));
-		setLit('ledRecord', lit(0x23, 4));
+		recordLit = lit(0x23, 4);
+		setLit('ledRecord', recordLit);
 		setLit('ledTempo', lit(0x23, 5));
 		setLit('mdPatternPage3', lit(0x23, 6));
 	}
@@ -160,9 +165,17 @@
 
 	const activeButtons = new Map();	// pointerId -> element
 
+	function functionHeld() {
+		for (const el of activeButtons.values()) if (el.dataset.control === 'Function') return true;
+		return false;
+	}
+
 	function buttonDown(el) {
 		el.classList.add('down');
 		send('b ' + el.dataset.control + ' 1');
+		// playing a trig key selects that sound, unless it is a chord or a grid edit
+		if (el.dataset.track !== undefined && !functionHeld() && !recordLit)
+			send('t ' + el.dataset.track);
 	}
 	function buttonUp(el) {
 		el.classList.remove('down');
@@ -174,6 +187,8 @@
 		activeButtons.clear();
 		encoders.forEach(function (st) { if (st.held) { st.held = false; st.el.classList.remove('held'); } });
 		encoders.clear();
+		xyFingers.forEach(function (f) { if (f.marker) f.marker.remove(); });
+		xyFingers.clear();
 	}
 
 	function bindButtons() {
@@ -193,24 +208,38 @@
 			el.addEventListener('pointercancel', up);
 			el.addEventListener('lostpointercapture', up);
 		});
+		// the sound selection names select their track directly
+		document.querySelectorAll('.soundSelect .name').forEach(function (el) {
+			el.addEventListener('pointerdown', function (ev) {
+				ev.preventDefault();
+				send('t ' + el.dataset.track);
+			});
+		});
 	}
 
-	// encoders: drag vertically (or horizontally) to turn, tap to push, hold still then drag to turn while pushed
+	// encoders: drag vertically (or horizontally) to turn, tap to push, hold still then drag to turn while pushed.
+	// The sound selection wheel is turned around its centre like the real jog wheel, one track per 24 degrees.
 	const encoders = new Map();	// pointerId -> state
 	const STEP_PIXELS = 3;
+	const WHEEL_DEGREES = 24;
 	const TAP_MS = 250, HOLD_MS = 350, MOVE_DEAD = 4;
 
 	function bindEncoders() {
 		document.querySelectorAll('[data-encoder]').forEach(function (el) {
 			const cap = el.querySelector('.cap');
-			let angle = 0;
 			const wheel = el.classList.contains('wheel');
-			const pixels = wheel ? 6 : STEP_PIXELS;
+			let wheelAngle = 0;
+
+			const angleOf = function (ev) {
+				const r = el.getBoundingClientRect();
+				return Math.atan2(ev.clientY - (r.top + r.height / 2), ev.clientX - (r.left + r.width / 2)) * 180 / Math.PI;
+			};
 
 			el.addEventListener('pointerdown', function (ev) {
 				ev.preventDefault();
 				el.setPointerCapture(ev.pointerId);
-				const st = { el: el, x: ev.clientX, y: ev.clientY, acc: 0, moved: false, held: false, t: Date.now(), holdTimer: null };
+				const st = { el: el, x: ev.clientX, y: ev.clientY, acc: 0, moved: false, held: false, t: Date.now(), holdTimer: null,
+					angle: wheel ? angleOf(ev) : 0 };
 				st.holdTimer = setTimeout(function () {
 					if (!st.moved && encoders.get(ev.pointerId) === st) {
 						st.held = true; el.classList.add('held');
@@ -222,20 +251,31 @@
 			el.addEventListener('pointermove', function (ev) {
 				const st = encoders.get(ev.pointerId);
 				if (!st) return;
-				const dx = ev.clientX - st.x, dy = ev.clientY - st.y;
-				st.x = ev.clientX; st.y = ev.clientY;
-				// up or right = clockwise
-				const d = (Math.abs(dy) >= Math.abs(dx) ? -dy : dx);
-				st.acc += d;
-				if (!st.moved && Math.abs(st.acc) > MOVE_DEAD) { st.moved = true; if (!st.held) clearTimeout(st.holdTimer); }
-				if (!st.moved) return;
-				const steps = Math.trunc(st.acc / pixels);
-				if (steps !== 0) {
-					st.acc -= steps * pixels;
-					send('e ' + el.dataset.encoder + ' ' + steps);
-					angle += steps * (wheel ? 7.5 : 12);
-					cap.style.transform = 'rotate(' + angle + 'deg)';
+				let steps = 0;
+				if (wheel) {
+					const a = angleOf(ev);
+					let d = a - st.angle;
+					if (d > 180) d -= 360; else if (d < -180) d += 360;
+					st.angle = a;
+					st.acc += d;
+					if (!st.moved && Math.abs(st.acc) > 6) { st.moved = true; if (!st.held) clearTimeout(st.holdTimer); }
+					if (!st.moved) return;
+					steps = Math.trunc(st.acc / WHEEL_DEGREES);
+					if (steps !== 0) {
+						st.acc -= steps * WHEEL_DEGREES;
+						wheelAngle += steps * WHEEL_DEGREES;
+						cap.style.transform = 'rotate(' + wheelAngle + 'deg)';
+					}
+				} else {
+					const dx = ev.clientX - st.x, dy = ev.clientY - st.y;
+					st.x = ev.clientX; st.y = ev.clientY;
+					st.acc += (Math.abs(dy) >= Math.abs(dx) ? -dy : dx);		// up or right = clockwise
+					if (!st.moved && Math.abs(st.acc) > MOVE_DEAD) { st.moved = true; if (!st.held) clearTimeout(st.holdTimer); }
+					if (!st.moved) return;
+					steps = Math.trunc(st.acc / STEP_PIXELS);
+					if (steps !== 0) st.acc -= steps * STEP_PIXELS;
 				}
+				if (steps !== 0) send('e ' + el.dataset.encoder + ' ' + steps);
 			});
 			const up = function (ev) {
 				const st = encoders.get(ev.pointerId);
@@ -255,11 +295,71 @@
 		});
 	}
 
+	// ---- four-finger XY mode: finger n moves encoder A+n left/right and E+n up/down ----
+
+	const xyFingers = new Map();	// pointerId -> { slot, x, y, accX, accY, marker }
+	let xyActive = false;
+
+	function bindXy() {
+		const toggle = document.getElementById('xyToggle');
+		const area = document.getElementById('xy');
+		toggle.addEventListener('pointerdown', function (ev) {
+			ev.preventDefault(); ev.stopPropagation();
+			xyActive = !xyActive;
+			toggle.classList.toggle('on', xyActive);
+			area.classList.toggle('hidden', !xyActive);
+			if (!xyActive) { xyFingers.forEach(function (f) { if (f.marker) f.marker.remove(); }); xyFingers.clear(); }
+		});
+
+		const freeSlot = function () {
+			const used = new Set(); xyFingers.forEach(function (f) { used.add(f.slot); });
+			for (let s = 0; s < 4; ++s) if (!used.has(s)) return s;
+			return -1;
+		};
+		const toPanel = function (ev) {
+			const r = area.getBoundingClientRect();
+			return { x: (ev.clientX - r.left) / stageScale, y: (ev.clientY - r.top) / stageScale };
+		};
+
+		area.addEventListener('pointerdown', function (ev) {
+			ev.preventDefault();
+			const slot = freeSlot();
+			if (slot < 0) return;
+			area.setPointerCapture(ev.pointerId);
+			const p = toPanel(ev);
+			const marker = document.createElement('div'); marker.className = 'xyFinger';
+			marker.textContent = LETTERS[slot] + '/' + LETTERS[slot + 4];
+			marker.style.left = p.x + 'px'; marker.style.top = p.y + 'px';
+			area.appendChild(marker);
+			xyFingers.set(ev.pointerId, { slot: slot, x: ev.clientX, y: ev.clientY, accX: 0, accY: 0, marker: marker });
+		});
+		area.addEventListener('pointermove', function (ev) {
+			const f = xyFingers.get(ev.pointerId);
+			if (!f) return;
+			f.accX += ev.clientX - f.x; f.accY -= ev.clientY - f.y;	// up = increase
+			f.x = ev.clientX; f.y = ev.clientY;
+			const sx = Math.trunc(f.accX / STEP_PIXELS), sy = Math.trunc(f.accY / STEP_PIXELS);
+			if (sx !== 0) { f.accX -= sx * STEP_PIXELS; send('e DataEntry' + LETTERS[f.slot] + ' ' + sx); }
+			if (sy !== 0) { f.accY -= sy * STEP_PIXELS; send('e DataEntry' + LETTERS[f.slot + 4] + ' ' + sy); }
+			const p = toPanel(ev);
+			f.marker.style.left = p.x + 'px'; f.marker.style.top = p.y + 'px';
+		});
+		const up = function (ev) {
+			const f = xyFingers.get(ev.pointerId);
+			if (!f) return;
+			xyFingers.delete(ev.pointerId);
+			if (f.marker) f.marker.remove();
+		};
+		area.addEventListener('pointerup', up);
+		area.addEventListener('pointercancel', up);
+	}
+
 	// ---- go ----
 
 	build();
 	bindButtons();
 	bindEncoders();
+	bindXy();
 	layout();
 	window.addEventListener('resize', layout);
 	window.addEventListener('orientationchange', function () { setTimeout(layout, 100); });

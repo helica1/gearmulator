@@ -441,6 +441,12 @@ namespace mdJucePlugin
 				return device ? device->getFrontPanelSnapshot() : md::FrontPanel();
 			});
 		};
+		callbacks.sendSysex = [this](const std::vector<uint8_t>& _sysex)
+		{
+			synthLib::SMidiEvent event(synthLib::MidiEventSource::Editor);
+			event.sysex.insert(event.sysex.end(), _sysex.begin(), _sysex.end());
+			addMidiEvent(event);
+		};
 		callbacks.resource = [this](const std::string& _path, std::string& _data, std::string& _mime)
 		{
 			// a "remote" folder next to the firmware overrides the embedded web app, handy while editing it
