@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <cstdio>
+#include <cstdlib>
 
 namespace
 {
@@ -657,9 +658,42 @@ namespace md
 		return m_hardware->getDspMixer().getPeriph().getEssiClock().getSpeedInHz();
 	}
 
+	namespace
+	{
+		// GEARMULATOR_MD_MIDI_TRACE=1 logs every MIDI message between host and machine
+		bool midiTraceEnabled()
+		{
+			static const bool enabled = []
+			{
+				const auto* const v = std::getenv("GEARMULATOR_MD_MIDI_TRACE");
+				return v && *v && *v != '0';
+			}();
+			return enabled;
+		}
+
+		void traceMidi(const char* _direction, const synthLib::SMidiEvent& _ev)
+		{
+			if(!midiTraceEnabled())
+				return;
+			if(_ev.sysex.empty())
+				std::fprintf(stderr, "[MIDI %s] %02x %02x %02x\n", _direction, _ev.a, _ev.b, _ev.c);
+			else
+			{
+				std::fprintf(stderr, "[MIDI %s] sysex %zu bytes:", _direction, _ev.sysex.size());
+				for(size_t i = 0; i < _ev.sysex.size() && i < 12; ++i)
+					std::fprintf(stderr, " %02x", _ev.sysex[i]);
+				std::fprintf(stderr, "\n");
+			}
+		}
+	}
+
 	void Device::readMidiOut(std::vector<synthLib::SMidiEvent>& _midiOut)
 	{
+		const auto before = _midiOut.size();
 		m_hardware->readMidiOut(_midiOut);
+		if(midiTraceEnabled())
+			for(size_t i = before; i < _midiOut.size(); ++i)
+				traceMidi("out", _midiOut[i]);
 	}
 
 	void Device::processAudio(const synthLib::TAudioInputs& _inputs, const synthLib::TAudioOutputs& _outputs, const size_t _samples)
@@ -683,6 +717,7 @@ namespace md
 
 	bool Device::sendMidi(const synthLib::SMidiEvent& _ev, std::vector<synthLib::SMidiEvent>& _response)
 	{
+		traceMidi("in", _ev);
 		if(_ev.sysex.empty())
 		{
 			const auto status = static_cast<uint8_t>(_ev.a & 0xf0);

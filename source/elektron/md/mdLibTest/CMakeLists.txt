@@ -293,3 +293,8 @@ endif()
 add_executable(mdLinkTapTest mdLinkTapTest.cpp)
 target_link_libraries(mdLinkTapTest PRIVATE mdLib)
 set_property(TARGET mdLinkTapTest PROPERTY FOLDER "Elektron")
+
+# Diagnostic tool, not a test: renders a pattern on a given firmware image for A/B comparisons.
+add_executable(mdAudioCaptureTool mdAudioCaptureTool.cpp)
+target_link_libraries(mdAudioCaptureTool PRIVATE mdLib)
+set_property(TARGET mdAudioCaptureTool PROPERTY FOLDER "Elektron")

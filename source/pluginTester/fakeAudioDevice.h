@@ -62,6 +62,7 @@ private:
     int getXRunCount() const noexcept override { return 0; }
 
 public:
+	const AudioBuffer<float>& getBuffer() const { return m_buffer; }
 	void prepareProcess();
 
     void processAudio()

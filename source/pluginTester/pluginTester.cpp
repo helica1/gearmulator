@@ -157,7 +157,7 @@ int main(const int _argc, char* _argv[])
 	{
 		Logger::writeToLog("Error: " + _msg);
 		Logger::writeToLog("Usage:\n"
-			"pluginTester -plugin <pathToPlugin> [-seconds n -blocks n -blocksize n -samplerate x -bpm x [-playcycle seconds] -forever -repeat n -automation-smoke -verify-audio-buses -verify-audio-identity]");
+			"pluginTester -plugin <pathToPlugin> [-seconds n -blocks n -blocksize n -samplerate x -bpm x [-playcycle seconds] [-record out.f32] -forever -repeat n -automation-smoke -verify-audio-buses -verify-audio-identity]");
 		return 1;
 	};
 
@@ -320,6 +320,29 @@ int main(const int _argc, char* _argv[])
 
 		audioDevice.start(&pluginHost);
 
+		// -record <file>: the plugin's stereo output as raw float32 interleaved
+		std::unique_ptr<juce::FileOutputStream> record;
+		if (cmdLine.contains("record"))
+		{
+			record = std::make_unique<juce::FileOutputStream>(juce::File(cmdLine.get("record")));
+			if (!record->openedOk())
+				record.reset();
+			else
+				record->setPosition(0), record->truncate();
+		}
+		const auto recordBlock = [&]
+		{
+			if (!record)
+				return;
+			const auto& buffer = audioDevice.getBuffer();
+			const auto channels = std::min(2, buffer.getNumChannels());
+			std::vector<float> interleaved(static_cast<size_t>(buffer.getNumSamples()) * 2, 0.0f);
+			for (int c = 0; c < channels; ++c)
+				for (int n = 0; n < buffer.getNumSamples(); ++n)
+					interleaved[static_cast<size_t>(n) * 2 + static_cast<size_t>(c)] = buffer.getReadPointer(c)[n];
+			record->write(interleaved.data(), interleaved.size() * sizeof(float));
+		};
+
 		const auto forever = cmdLine.contains("forever");
 
 		if (forever)
@@ -336,6 +359,7 @@ int main(const int _argc, char* _argv[])
 			while (true)
 			{
 				audioDevice.processAudio();
+				recordBlock();
 				++blockCount;
 
 				auto formatDuration = [](const uint64_t _seconds) -> std::string
@@ -387,6 +411,7 @@ int main(const int _argc, char* _argv[])
 		for (int i=0; i<blocks; ++i)
 		{
 			audioDevice.processAudio();
+			recordBlock();
 
 			const auto percent = i * 100 / blocks;
 
