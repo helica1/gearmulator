@@ -17,6 +17,7 @@
 
 #include "baseLib/filesystem.h"
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -155,14 +156,49 @@ int main(const int argc, char* argv[])
 		outputs[c] = chan[c].data();
 
 	const uint32_t total = md::g_samplerate * seconds;
+	const auto jit1Before = hardware.getDspMixer().dsp().getJit().getStats();
+	const auto jit2Before = hardware.getDspProducer().dsp().getJit().getStats();
+	const auto dsp1Before = hardware.getDspMixer().dsp().getInstructionCounter();
+	const auto dsp2Before = hardware.getDspProducer().dsp().getInstructionCounter();
+	const auto ucBefore = hardware.getUC().getCycles();
+	using Clock = std::chrono::steady_clock;
+	const double budgetMs = 256.0 * 1000.0 / md::g_samplerate;
+	double maxMs = 0, sumMs = 0; uint32_t over = 0, over2 = 0, blocks = 0;
+	std::vector<double> perSecond;
+	double secondAccum = 0;
 	for(uint32_t done = 0; done < total; done += 256)
 	{
+		const auto t0 = Clock::now();
 		hardware.processAudio(outputs, 256, 0);
+		const auto ms = std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
+		maxMs = std::max(maxMs, ms); sumMs += ms; ++blocks;
+		if(ms > budgetMs) ++over;
+		if(ms > 2 * budgetMs) ++over2;
+		secondAccum += ms;
+		if(((done / 256) + 1) % (md::g_samplerate / 256) == 0) { perSecond.push_back(secondAccum); secondAccum = 0; }
 		for(uint32_t i = 0; i < 256; ++i)
 			for(size_t c = 0; c < 6; ++c)
 				outAll.push_back(chan[c][i]);
 	}
 	tap(hardware, model, md::PanelControl::Stop);
+	const auto dsp1 = hardware.getDspMixer().dsp().getInstructionCounter() - dsp1Before;
+	const auto dsp2 = hardware.getDspProducer().dsp().getInstructionCounter() - dsp2Before;
+	const auto uc = hardware.getUC().getCycles() - ucBefore;
+	std::cerr << "work per emulated second: DSP1 " << dsp1 / seconds << " instr, DSP2 " << dsp2 / seconds
+		<< " instr, UC " << uc / seconds << " cycles\n";
+	const auto jit1 = hardware.getDspMixer().dsp().getJit().getStats();
+	const auto jit2 = hardware.getDspProducer().dsp().getJit().getStats();
+	std::cerr << "JIT during render: DSP1 created " << jit1.blocksCreated - jit1Before.blocksCreated
+		<< " destroyed " << jit1.blocksDestroyed - jit1Before.blocksDestroyed << " pWrites " << jit1.programMemWrites - jit1Before.programMemWrites
+		<< " volatileP " << jit1.volatilePAddresses << " | DSP2 created " << jit2.blocksCreated - jit2Before.blocksCreated
+		<< " destroyed " << jit2.blocksDestroyed - jit2Before.blocksDestroyed << " pWrites " << jit2.programMemWrites - jit2Before.programMemWrites
+		<< " volatileP " << jit2.volatilePAddresses << "\n";
+	std::cerr << "JIT since boot: DSP1 created " << jit1.blocksCreated << " destroyed " << jit1.blocksDestroyed
+		<< " | DSP2 created " << jit2.blocksCreated << " destroyed " << jit2.blocksDestroyed << "\n";
+	std::cerr << "block timing: blocks=" << blocks << " mean=" << sumMs / blocks << "ms max=" << maxMs
+		<< "ms budget=" << budgetMs << "ms over=" << over << " over2x=" << over2 << "\n  ms per emulated second:";
+	for(const auto v : perSecond) std::cerr << ' ' << static_cast<int>(v);
+	std::cerr << "\n";
 
 	std::ofstream(prefix + "_out.bin", std::ios::binary).write(reinterpret_cast<const char*>(outAll.data()), static_cast<std::streamsize>(outAll.size() * 4));
 

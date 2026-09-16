@@ -1,5 +1,6 @@
 #include <array>
 #include <chrono>
+#include <thread>
 #include <cmath>
 
 #include "fakeAudioDevice.h"
@@ -157,7 +158,7 @@ int main(const int _argc, char* _argv[])
 	{
 		Logger::writeToLog("Error: " + _msg);
 		Logger::writeToLog("Usage:\n"
-			"pluginTester -plugin <pathToPlugin> [-seconds n -blocks n -blocksize n -samplerate x -bpm x [-playcycle seconds] [-record out.f32] -forever -repeat n -automation-smoke -verify-audio-buses -verify-audio-identity]");
+			"pluginTester -plugin <pathToPlugin> [-seconds n -blocks n -blocksize n -samplerate x -bpm x [-playcycle seconds] [-record out.f32] -forever [-messageloop] [-realtime] -repeat n -automation-smoke -verify-audio-buses -verify-audio-identity]");
 		return 1;
 	};
 
@@ -355,6 +356,44 @@ int main(const int _argc, char* _argv[])
 			using Clock = std::chrono::high_resolution_clock;
 
 			const auto tBegin = Clock::now();
+
+			// -messageloop: audio runs on its own thread while the main thread serves JUCE
+			// timers and async updates, as a DAW host would.
+			// -realtime: pace the blocks to wall-clock time so timer-driven behaviour matches a DAW.
+			const bool messageLoop = cmdLine.contains("messageloop");
+			const bool realtime = cmdLine.contains("realtime");
+			const auto blockDuration = std::chrono::duration<double>(static_cast<double>(blocksize) / static_cast<double>(samplerate));
+
+			auto audioLoop = [&]
+			{
+				auto nextBlockTime = Clock::now();
+				while (true)
+				{
+					if (realtime)
+					{
+						nextBlockTime += std::chrono::duration_cast<Clock::duration>(blockDuration);
+						std::this_thread::sleep_until(nextBlockTime);
+					}
+					audioDevice.processAudio();
+					recordBlock();
+					++blockCount;
+					if (blockCount % 4096 == 0)
+					{
+						const auto totalSeconds = blockCount * blocksize / sr;
+						char temp[64];
+						(void)snprintf(temp, sizeof(temp), "Processed %llus", static_cast<unsigned long long>(totalSeconds));
+						Logger::writeToLog(temp);
+					}
+				}
+			};
+
+			if (messageLoop)
+			{
+				std::thread audioThread(audioLoop);
+				juce::MessageManager::getInstance()->runDispatchLoop();
+				audioThread.join();
+				return 0;
+			}
 
 			while (true)
 			{
