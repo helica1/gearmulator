@@ -24,7 +24,7 @@ namespace md
 {
 	/*	Serves the machine's front panel to a browser on the local network, a tablet typically.
 
-		HTTP GET /            the panel web app (index.html and its assets, from the resource callback)
+		HTTP GET /            the panel web app (index.html or index-mm.html for the Monomachine, from the resource callback)
 		HTTP GET /ws          WebSocket. The server pushes the panel state whenever it changes:
 		                      'S', model byte, 1024 bytes LCD VRAM (half, page, column), 14 LED bank bytes.
 		                      The client sends text messages:
@@ -79,6 +79,7 @@ namespace md
 		bool websocketLoop(Client& _client);
 		bool sendWebSocketFrame(Client& _client, uint8_t _opcode, const uint8_t* _data, size_t _size);
 		void handleMessage(const std::string& _message);
+		void releaseAllRows();
 
 		static bool readLine(networkLib::Stream& _stream, std::string& _line);
 		static std::string mimeForPath(const std::string& _path);

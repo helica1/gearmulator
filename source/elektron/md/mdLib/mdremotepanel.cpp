@@ -277,10 +277,27 @@ namespace md
 		{
 			LOGNET(networkLib::LogLevel::Warning, "Remote panel client error: " << e.what());
 		}
+		const auto wasWebsocket = _client->websocket.load();
 		_client->websocket = false;
 		_client->closed = true;
 		if(_client->stream)
 			_client->stream->close();
+		// a panel that goes away must not leave keys held down on the machine
+		if(wasWebsocket)
+			releaseAllRows();
+	}
+
+	void RemotePanelServer::releaseAllRows()
+	{
+		std::lock_guard lock(m_inputMutex);
+		for(uint8_t row = 0x20; row <= 0x26; ++row)
+		{
+			if(m_rows.mask(row) == 0)
+				continue;
+			if(m_callbacks.sendPanelEvent)
+				m_callbacks.sendPanelEvent(row, 0);
+		}
+		m_rows.reset();
 	}
 
 	std::string RemotePanelServer::mimeForPath(const std::string& _path)
@@ -334,7 +351,7 @@ namespace md
 		if(q != std::string::npos)
 			path.resize(q);
 		if(path.empty() || path == "/")
-			path = "/index.html";
+			path = m_model == MachineModel::Monomachine ? "/index-mm.html" : "/index.html";
 		if(path.front() == '/')
 			path.erase(path.begin());
 		if(path.find("..") != std::string::npos || _method != "GET")

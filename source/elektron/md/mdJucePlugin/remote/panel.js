@@ -1,34 +1,59 @@
-/* Machinedrum remote panel: renders the machine's LCD and LEDs from the state stream and sends
-   button, encoder and encoder-push events back over a WebSocket. Multitouch: every pointer is
-   tracked on its own, so FUNCTION + trig chords work with two fingers. */
+/* Machinedrum / Monomachine remote panel: renders the machine's LCD and LEDs from the state stream
+   and sends button, encoder and encoder-push events back over a WebSocket. Multitouch: every
+   pointer is tracked on its own, so FUNCTION + trig chords work with two fingers.
+   The page says which machine it draws via <body data-model="md|mm">. */
 (function () {
 	'use strict';
 
+	const MODEL = document.body.dataset.model === 'mm' ? 'mm' : 'md';
+	const IS_MM = MODEL === 'mm';
+	const MODEL_BYTE = IS_MM ? 1 : 0;				// md::MachineModel
+	const OTHER_PAGE = IS_MM ? 'index.html' : 'index-mm.html';
+	const DEFAULT_PORT = { md: 8790, mm: 8792 };
 	const TRACK_NAMES = ['BD', 'SD', 'HT', 'MT', 'LT', 'CP', 'RS', 'CB', 'CH', 'OH', 'RC', 'CC', 'M1', 'M2', 'M3', 'M4'];
 	const LED_BANK_FIRST = 0x20;
 	const STATE_HEADER = 2;
 	const VRAM_SIZE = 2 * 8 * 64;
 	const LETTERS = 'ABCDEFGH';
+	const LCD_ON = IS_MM ? [0x1a, 0x2b, 0x1e] : [0xf4, 0xa0, 0x6c];
+	const LCD_OFF = IS_MM ? [0xb9, 0xc8, 0xb2] : [0x3a, 0x14, 0x0e];
 
 	let socket = null;
 	let reconnectTimer = null;
 	let recordLit = false;		// grid recording: trig keys edit steps, so no auto track select then
+	let currentPage = -1;		// Monomachine: lit EDIT page LED
 
 	// ---- build the repeated parts of the panel ----
 
 	function build() {
 		const sound = document.getElementById('soundSelect');
-		for (let row = 0; row < 2; ++row) {
-			const r = document.createElement('div'); r.className = 'row';
-			for (let i = 0; i < 8; ++i) {
-				const t = row * 8 + i;
-				const cell = document.createElement('div'); cell.className = 'cell';
-				const led = document.createElement('div'); led.className = 'led'; led.id = 'drumLed' + t;
-				const name = document.createElement('div'); name.className = 'name'; name.textContent = TRACK_NAMES[t];
-				name.dataset.track = String(t);
-				cell.appendChild(led); cell.appendChild(name); r.appendChild(cell);
+		if (sound) {
+			for (let row = 0; row < 2; ++row) {
+				const r = document.createElement('div'); r.className = 'row';
+				for (let i = 0; i < 8; ++i) {
+					const t = row * 8 + i;
+					const cell = document.createElement('div'); cell.className = 'cell';
+					const led = document.createElement('div'); led.className = 'led'; led.id = 'drumLed' + t;
+					const name = document.createElement('div'); name.className = 'name'; name.textContent = TRACK_NAMES[t];
+					name.dataset.track = String(t);
+					cell.appendChild(led); cell.appendChild(name); r.appendChild(cell);
+				}
+				sound.appendChild(r);
 			}
-			sound.appendChild(r);
+		}
+
+		const tracks = document.getElementById('trackStack');
+		if (tracks) {
+			for (let t = 0; t < 6; ++t) {
+				const row = document.createElement('div'); row.className = 'trackRow';
+				const rule = document.createElement('div'); rule.className = 'trackRule';
+				const led = document.createElement('div'); led.className = 'led'; led.id = 'drumLed' + t;
+				const label = document.createElement('div'); label.className = 'trackLabel'; label.innerHTML = 'TRACK<br>' + (t + 1);
+				const key = document.createElement('div'); key.className = 'key light'; key.dataset.control = 'Track' + (t + 1);
+				const tab = document.createElement('div'); tab.className = 'trackTab'; tab.innerHTML = 'M<br>U<br>T<br>E';
+				row.appendChild(rule); row.appendChild(led); row.appendChild(label); row.appendChild(key); row.appendChild(tab);
+				tracks.appendChild(row);
+			}
 		}
 
 		const data = document.getElementById('dataEntry');
@@ -51,11 +76,15 @@
 			const cell = document.createElement('div'); cell.className = 'cell';
 			const led = document.createElement('div'); led.className = 'led'; led.id = 'stepLed' + i;
 			const trig = document.createElement('div'); trig.className = 'trig'; trig.dataset.control = 'Trigger' + (i + 1);
-			trig.dataset.track = String(i);
+			if (!IS_MM) trig.dataset.track = String(i);		// Machinedrum: one sound per trig key
 			const legend = document.createElement('div'); legend.className = 'legend' + ((i % 4) === 0 ? ' primary' : '');
-			const num = document.createElement('div'); num.className = 'num'; num.textContent = String(i + 1);
-			const name = document.createElement('div'); name.className = 'name'; name.textContent = TRACK_NAMES[i];
-			legend.appendChild(num); legend.appendChild(name);
+			if (IS_MM) {
+				legend.textContent = String(i + 1);
+			} else {
+				const num = document.createElement('div'); num.className = 'num'; num.textContent = String(i + 1);
+				const name = document.createElement('div'); name.className = 'name'; name.textContent = TRACK_NAMES[i];
+				legend.appendChild(num); legend.appendChild(name);
+			}
 			cell.appendChild(led); cell.appendChild(trig); cell.appendChild(legend); strip.appendChild(cell);
 		}
 	}
@@ -113,9 +142,9 @@
 			for (let x = 0; x < 128; ++x) {
 				const half = (x >> 6) & 1, col = x & 63;
 				const on = ((vram[half * 512 + page * 64 + col] >> bit) & 1) !== 0;
+				const c = on ? LCD_ON : LCD_OFF;
 				const o = (y * 128 + x) * 4;
-				if (on) { px[o] = 0xf4; px[o + 1] = 0xa0; px[o + 2] = 0x6c; px[o + 3] = 255; }
-				else { px[o] = 0x3a; px[o + 1] = 0x14; px[o + 2] = 0x0e; px[o + 3] = 255; }
+				px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = 255;
 			}
 		}
 		lcdCtx.putImageData(lcdImage, 0, 0);
@@ -126,8 +155,23 @@
 		if (el) el.classList.toggle('lit', lit);
 	}
 
+	function setColor(id, green, red) {
+		const el = document.getElementById(id);
+		if (!el) return;
+		el.classList.toggle('green', green && !red);
+		el.classList.toggle('red', red && !green);
+		el.classList.toggle('yellow', green && red);
+	}
+
+	let modelChecked = false;
+
 	function applyState(bytes) {
 		if (bytes.length < STATE_HEADER + VRAM_SIZE + 14 || bytes[0] !== 0x53) return;
+		if (!modelChecked) {
+			modelChecked = true;
+			// opened the wrong page for this machine, e.g. index.html on the Monomachine port
+			if (bytes[1] !== MODEL_BYTE) { location.replace(OTHER_PAGE); return; }
+		}
 		const vram = bytes.subarray(STATE_HEADER, STATE_HEADER + VRAM_SIZE);
 		let changed = !lastVram;
 		if (!changed) for (let i = 0; i < VRAM_SIZE; ++i) if (vram[i] !== lastVram[i]) { changed = true; break; }
@@ -136,6 +180,34 @@
 		const leds = bytes.subarray(STATE_HEADER + VRAM_SIZE);
 		const bank = function (cmd) { return leds[cmd - LED_BANK_FIRST]; };
 		const lit = function (cmd, bit) { return ((bank(cmd) >> bit) & 1) === 0; };	// active low
+
+		if (IS_MM) {
+			// four bicolour step LEDs per bank: even bit green, odd bit red
+			for (let i = 0; i < 16; ++i) {
+				const b = 0x20 + (i >> 2), g = (i & 3) * 2;
+				setColor('stepLed' + i, lit(b, g), lit(b, g + 1));
+			}
+			const tracks = [[0x25, 0], [0x25, 2], [0x24, 0], [0x24, 2], [0x24, 4], [0x24, 6]];
+			for (let t = 0; t < 6; ++t) setColor('drumLed' + t, lit(tracks[t][0], tracks[t][1]), lit(tracks[t][0], tracks[t][1] + 1));
+			currentPage = -1;
+			for (let p = 0; p < 7; ++p) {
+				const on = p < 4 ? lit(0x25, 4 + p) : lit(0x26, p - 4);
+				setLit('mmPageLed' + p, on);
+				if (on && currentPage < 0) currentPage = p;
+			}
+			setLit('mmBankGroupAD', lit(0x26, 3));
+			setLit('mmBankGroupEH', lit(0x26, 4));
+			setLit('stPattern', lit(0x26, 5));
+			setLit('stSong', lit(0x26, 6));
+			setLit('mmTempoLed', lit(0x26, 7));
+			recordLit = lit(0x27, 0);
+			setLit('mmRecordLed', recordLit);
+			setLit('mmTrigAmp', lit(0x27, 1));
+			setLit('mmTrigFilter', lit(0x27, 2));
+			setLit('mmTrigLfo', lit(0x27, 3));
+			for (let p = 0; p < 4; ++p) setLit('mmTrackPage' + p, lit(0x27, 4 + p));
+			return;
+		}
 
 		for (let i = 0; i < 16; ++i) {
 			setLit('stepLed' + i, lit(i < 8 ? 0x20 : 0x21, i & 7));
@@ -175,7 +247,7 @@
 	function buttonDown(el) {
 		el.classList.add('down');
 		send('b ' + el.dataset.control + ' 1');
-		// playing a trig key selects that sound, unless it is a chord or a grid edit
+		// Machinedrum: playing a trig key selects that sound, unless it is a chord or a grid edit
 		if (el.dataset.track !== undefined && !functionHeld() && !recordLit)
 			send('t ' + el.dataset.track);
 	}
@@ -184,11 +256,12 @@
 		send('b ' + el.dataset.control + ' 0');
 	}
 
+	// lets go of everything, telling the machine when the connection is still up
 	function releaseAll() {
-		activeButtons.forEach(function (el) { el.classList.remove('down'); });
+		activeButtons.forEach(function (el) { buttonUp(el); });
 		activeButtons.clear();
-		if (functionLatched) { functionLatched = false; const f = document.querySelector('[data-control="Function"]'); if (f) f.classList.remove('down'); }
-		encoders.forEach(function (st) { if (st.held) { st.held = false; st.el.classList.remove('held'); } });
+		if (functionLatched) { functionLatched = false; const f = document.querySelector('[data-control="Function"]'); if (f) buttonUp(f); }
+		encoders.forEach(function (st) { if (st.held) { st.held = false; st.el.classList.remove('held'); send('p ' + st.el.dataset.encoder + ' 0'); } });
 		encoders.clear();
 		xyFingers.forEach(function (f) { if (f.marker) f.marker.remove(); });
 		xyFingers.clear();
@@ -217,14 +290,25 @@
 			el.addEventListener('pointercancel', up);
 			el.addEventListener('lostpointercapture', up);
 		});
-		// a touch that starts anywhere else must not become a browser gesture either
-		document.addEventListener('touchstart', function (ev) { if (ev.touches.length > 1) ev.preventDefault(); }, { passive: false });
-		document.addEventListener('touchmove', function (ev) { ev.preventDefault(); }, { passive: false });
-		// the sound selection names select their track directly
+		// the Machinedrum sound selection names select their track directly
 		document.querySelectorAll('.soundSelect .name').forEach(function (el) {
 			el.addEventListener('pointerdown', function (ev) {
 				ev.preventDefault();
 				send('t ' + el.dataset.track);
+			});
+		});
+		// the Monomachine EDIT page names step the page arrows until that page is lit
+		document.querySelectorAll('.pageSelect').forEach(function (el) {
+			el.addEventListener('pointerdown', function (ev) {
+				ev.preventDefault();
+				const target = parseInt(el.dataset.page, 10);
+				if (currentPage < 0 || target === currentPage) return;
+				const control = target > currentPage ? 'DataPageForward' : 'DataPageBackward';
+				const steps = Math.abs(target - currentPage);
+				for (let i = 0; i < steps; ++i) {
+					setTimeout(function () { send('b ' + control + ' 1'); }, i * 160);
+					setTimeout(function () { send('b ' + control + ' 0'); }, i * 160 + 60);
+				}
 			});
 		});
 	}
@@ -307,22 +391,13 @@
 		});
 	}
 
-	// ---- four-finger XY mode: finger n moves encoder A+n left/right and E+n up/down ----
+	// ---- XY pad: finger n moves encoder A+n left/right and E+n up/down, in the order the fingers land ----
 
 	const xyFingers = new Map();	// pointerId -> { slot, x, y, accX, accY, marker }
-	let xyActive = false;
+	const xyArea = document.getElementById('xy');
 
 	function bindXy() {
-		const toggle = document.getElementById('xyToggle');
-		const area = document.getElementById('xy');
-		toggle.addEventListener('pointerdown', function (ev) {
-			ev.preventDefault(); ev.stopPropagation();
-			xyActive = !xyActive;
-			toggle.classList.toggle('on', xyActive);
-			area.classList.toggle('hidden', !xyActive);
-			if (!xyActive) { xyFingers.forEach(function (f) { if (f.marker) f.marker.remove(); }); xyFingers.clear(); }
-		});
-
+		const area = xyArea;
 		const freeSlot = function () {
 			const used = new Set(); xyFingers.forEach(function (f) { used.add(f.slot); });
 			for (let s = 0; s < 4; ++s) if (!used.has(s)) return s;
@@ -333,15 +408,8 @@
 			return { x: (ev.clientX - r.left) / stageScale, y: (ev.clientY - r.top) / stageScale };
 		};
 
-		let lastTap = 0;
 		area.addEventListener('pointerdown', function (ev) {
 			ev.preventDefault();
-			// double tap with one finger leaves XY mode
-			if (xyFingers.size === 0) {
-				const now = Date.now();
-				if (now - lastTap < 300) { lastTap = 0; toggle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: false })); return; }
-				lastTap = now;
-			}
 			const slot = freeSlot();
 			if (slot < 0) return;
 			area.setPointerCapture(ev.pointerId);
@@ -373,12 +441,75 @@
 		area.addEventListener('pointercancel', up);
 	}
 
+	// ---- switching between the two machines: a button, or a four-finger swipe outside the XY pad ----
+
+	function otherMachineUrl() {
+		const other = IS_MM ? 'md' : 'mm';
+		let port = DEFAULT_PORT[other];
+		try { const saved = localStorage.getItem('port.' + other); if (saved) port = parseInt(saved, 10); } catch (e) { }
+		return location.protocol + '//' + location.hostname + ':' + port + '/';
+	}
+
+	let switching = false;
+
+	function switchMachine() {
+		if (switching) return;
+		switching = true;
+		const button = document.getElementById('switchMachine');
+		if (button) button.classList.add('busy');
+		const url = otherMachineUrl();
+		// only leave when the other machine answers, a dead page on a tablet is a nuisance
+		const ctrl = new AbortController();
+		const timer = setTimeout(function () { ctrl.abort(); }, 1500);
+		fetch(url + 'panel.css', { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal }).then(function () {
+			clearTimeout(timer);
+			releaseAll();
+			location.href = url;
+		}).catch(function () {
+			clearTimeout(timer);
+			switching = false;
+			if (button) { button.classList.remove('busy'); button.textContent = 'no ' + (IS_MM ? 'MD' : 'MM'); setTimeout(function () { button.innerHTML = (IS_MM ? 'MD' : 'MM') + ' &rarr;'; }, 1500); }
+		});
+	}
+
+	function bindSwitch() {
+		try { localStorage.setItem('port.' + MODEL, location.port || (location.protocol === 'https:' ? '443' : '80')); } catch (e) { }
+		const button = document.getElementById('switchMachine');
+		if (button) button.addEventListener('pointerdown', function (ev) { ev.preventDefault(); ev.stopPropagation(); switchMachine(); });
+
+		// four fingers swiping sideways, none of them on the XY pad
+		let swipe = null;
+		document.addEventListener('touchstart', function (ev) {
+			if (ev.touches.length > 1) ev.preventDefault();
+			if (ev.touches.length === 4) {
+				let onPad = false, sx = 0, sy = 0;
+				for (let i = 0; i < 4; ++i) {
+					const t = ev.touches[i];
+					if (xyArea && xyArea.contains(t.target)) onPad = true;
+					sx += t.clientX; sy += t.clientY;
+				}
+				swipe = onPad ? null : { x: sx / 4, y: sy / 4 };
+			} else if (ev.touches.length > 4) swipe = null;
+		}, { passive: false });
+		document.addEventListener('touchmove', function (ev) {
+			ev.preventDefault();
+			if (!swipe || ev.touches.length !== 4) return;
+			let sx = 0, sy = 0;
+			for (let i = 0; i < 4; ++i) { sx += ev.touches[i].clientX; sy += ev.touches[i].clientY; }
+			const dx = sx / 4 - swipe.x, dy = sy / 4 - swipe.y;
+			if (Math.abs(dx) > 100 && Math.abs(dy) < 80) { swipe = null; switchMachine(); }
+		}, { passive: false });
+		document.addEventListener('touchend', function (ev) { if (ev.touches.length < 4) swipe = null; });
+		document.addEventListener('touchcancel', function () { swipe = null; });
+	}
+
 	// ---- go ----
 
 	build();
 	bindButtons();
 	bindEncoders();
 	bindXy();
+	bindSwitch();
 	layout();
 	window.addEventListener('resize', layout);
 	window.addEventListener('orientationchange', function () { setTimeout(layout, 100); });

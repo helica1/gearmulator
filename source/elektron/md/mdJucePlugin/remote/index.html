@@ -9,7 +9,7 @@
 <title>Machinedrum</title>
 <link rel="stylesheet" href="panel.css">
 </head>
-<body>
+<body data-model="md">
 <div id="stage">
 <div id="panel" class="panel md">
 
@@ -78,14 +78,14 @@
 	<div class="stripe" style="left:333px;top:228px"></div><div class="stripe" style="left:608px;top:228px"></div>
 
 	<!-- right: level, tempo, data entry -->
+	<div id="xy" class="xyPad" style="left:664px;top:39px;width:430px;height:73px"><div class="xyHint">XY &middot; A B C D &larr;&rarr; &middot; E F G H &uarr;&darr;</div></div>
 	<div class="knob" id="encLevel" data-encoder="Level" style="left:688px;top:128px"><div class="cap"></div></div>
 	<div class="panelLabel" style="left:682px;top:177px;width:58px">LEVEL</div>
 	<div class="led" id="ledTempo" style="left:687px;top:198px"></div>
 	<div class="miniLabel" style="left:700px;top:195px;width:44px;text-align:left">TEMPO</div>
 	<div class="key" data-control="Tempo" style="left:684px;top:222px"></div>
 	<div class="titleRule" style="left:778px;top:117px;width:300px;height:8px"><span>DATA ENTRY</span></div>
-	<div id="xyToggle" class="xyToggle" style="left:1036px;top:92px">XY</div>
-	<div id="dataEntry" class="dataEntry" style="left:779px;top:128px;width:298px;height:140px"></div>
+		<div id="dataEntry" class="dataEntry" style="left:779px;top:128px;width:298px;height:140px"></div>
 	<div class="guide" style="left:820px;top:275px;width:180px;height:1px"></div>
 	<div class="guide" style="left:820px;top:275px;width:1px;height:8px"></div>
 	<div class="guide" style="left:878px;top:275px;width:1px;height:8px"></div>
@@ -147,6 +147,7 @@
 	<div id="stepStrip" class="stepStrip" style="left:39px;top:447px;width:960px;height:89px"></div>
 
 	<!-- scale cluster -->
+	<div id="switchMachine" class="switchMachine" style="left:1006px;top:548px">MM &rarr;</div>
 	<div class="scaleCluster" style="left:1002px;top:443px;width:77px;height:94px">
 		<div class="titleRule scaleRule" style="left:9px;top:6px;width:58px;height:8px"><span>1/64</span></div>
 		<div class="scalePages">
@@ -160,7 +161,6 @@
 	</div>
 </div>
 </div>
-<div id="xy" class="xy hidden"><div class="xyHint">XY: each finger moves two encoders, left/right = A B C D, up/down = E F G H, in the order the fingers land. Double tap or XY to leave.</div></div>
 <div id="overlay"><div id="overlayText">Connecting to the machine...</div></div>
 <script src="panel.js"></script>
 </body>

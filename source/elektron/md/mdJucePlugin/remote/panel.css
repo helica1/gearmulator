@@ -1,4 +1,5 @@
-/* Machinedrum remote panel. Geometry mirrors skins/mdDefault/mdDefault.rml (1 dp = 1 px at scale 1). */
+/* Machinedrum / Monomachine remote panel. Geometry mirrors skins/mdDefault/mdDefault.rml and
+   skins/mmSfx60/mmSfx60.rml (1 dp = 1 px at scale 1). */
 
 /* every element: no browser gestures. Without this, a second finger on an encoder while a trig key is
    held starts a pinch and Safari cancels the first pointer, which releases the trig and turns a
@@ -131,12 +132,64 @@ html, body {
 #overlay { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: #000000aa; color: #eee; display: flex; align-items: center; justify-content: center; font-size: 20px; z-index: 10; }
 #overlay.hidden { display: none; }
 
-/* XY multitouch mode */
-.xyToggle { width: 36px; height: 18px; line-height: 18px; text-align: center; font-size: 10px; font-weight: bold; letter-spacing: 1px;
-	color: #ece5d8; background: #6b382e; border: 1px solid #5b2d25; border-radius: 2px; z-index: 6; }
-.xyToggle.on { background: #d05f3d; color: #21170f; }
-.xy { position: absolute; left: 129px; top: 36px; width: 949px; height: 232px; z-index: 5; background: #0b0c0bcc; border: 2px dashed #d05f3d; }
-.xy.hidden { display: none; }
-.xyHint { position: absolute; left: 0; right: 0; top: 8px; text-align: center; color: #d0d1cc; font-size: 13px; pointer-events: none; }
-.xyFinger { position: absolute; width: 90px; height: 90px; margin: -45px 0 0 -45px; border-radius: 50%; border: 3px solid #f0a06c;
-	background: #f0a06c33; color: #ffe8d6; font-size: 22px; font-weight: bold; text-align: center; line-height: 84px; pointer-events: none; }
+/* XY multitouch pad: permanent, each finger drives two DATA ENTRY encoders */
+.xyPad { background: #0b0c0b; border: 1px dashed #d05f3d99; border-radius: 4px; overflow: visible; z-index: 5; }
+.xyHint { position: absolute; left: 0; right: 0; top: 2px; text-align: center; color: #8a8c86; font-size: 9px; letter-spacing: 1px; pointer-events: none; }
+.xyFinger { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; border: 3px solid #f0a06c;
+	background: #f0a06c33; color: #ffe8d6; font-size: 14px; font-weight: bold; text-align: center; line-height: 50px; pointer-events: none; z-index: 7; }
+.switchMachine { width: 44px; height: 16px; line-height: 16px; text-align: center; font-size: 9px; font-weight: bold; letter-spacing: 1px;
+	color: #ece5d8; background: #6b382e; border: 1px solid #5b2d25; border-radius: 2px; }
+.switchMachine.busy { opacity: 0.5; }
+
+/* ---- Monomachine ---- */
+.panel.mm { background: #d4d5d0; border-color: #74756f; color: #292a26; }
+.mm .screw { background-image: url(mmScrew.png); }
+.mm .ruleV { background: #898a84; }
+.mm .ruleH.shadow { background: #898a84; }
+.mm .ruleH.highlight { background: #e4e5e0; }
+.blackPanel { background: #20221f; border: 1px solid #11120f; }
+.mm .lcd { background: #c0c9ba; border: 4px solid #0d0f0c; }
+.mm .lcd canvas { width: 220px; height: 110px; }
+.dataHeading { color: #d0583c; font-size: 9px; font-weight: bold; letter-spacing: 1px; text-align: center; height: 13px; line-height: 13px; white-space: nowrap; }
+.mm .dataEntry { gap: 18px; }
+.mm .dataEntry .row { height: 60px; }
+.mm .dataEntry .cell { height: 60px; }
+.mm .dataEntry .caption { background: transparent; color: #aeb0a8; font-weight: normal; font-size: 10px; margin-top: 1px; width: 37px; }
+.mm .xyPad { border-color: #d05f3d66; background: #151614; }
+.led.pageDot { filter: opacity(0.7) grayscale(1) brightness(0.8); }
+.led.pageDot.lit { filter: sepia(1) saturate(6) hue-rotate(-25deg) brightness(1.15) drop-shadow(0 0 3px #f05a3d); }
+.pageHeading { color: #383934; font-size: 8px; font-weight: bold; text-align: center; height: 13px; line-height: 13px; }
+.pageRule { width: 27px; height: 1px; background: #777972; }
+.pageLabel.pageSelect { height: 14px; line-height: 14px; }
+.key.dataArrow { background: #e1e1da; border-color: #898a84; }
+.key.dataArrow .glyph { filter: none; opacity: 0.8; }
+.trackStack { display: flex; flex-direction: column; }
+.trackRow { position: relative; width: 156px; height: 50px; flex: 0 0 auto; }
+.trackRow > * { position: absolute; }
+.trackRule { left: 0; top: 39px; width: 156px; height: 1px; background: #aaaba5; }
+.trackRow .led { left: 19px; top: 6px; }
+.trackLabel { left: 30px; top: 0; width: 38px; height: 28px; line-height: 12px; padding-top: 2px; color: #a04d39; font-size: 10px; font-weight: bold; letter-spacing: 1px; text-align: center; }
+.trackRow .key { left: 69px; top: 2px; }
+.trackTab { left: 130px; top: 1px; width: 14px; height: 29px; padding-top: 3px; background: #4b4d47; color: #efefe8; font-size: 5px; font-weight: bold; line-height: 6px; text-align: center; }
+.mm .led.green { filter: sepia(1) saturate(6) hue-rotate(60deg) brightness(1.1) drop-shadow(0 0 3px #6f6); }
+.mm .led.red { filter: sepia(1) saturate(6) hue-rotate(-25deg) brightness(1.15) drop-shadow(0 0 3px #f05a3d); }
+.mm .led.yellow { filter: sepia(1) saturate(6) hue-rotate(10deg) brightness(1.3) drop-shadow(0 0 3px #fd4); }
+.mm .stepStrip .led { filter: opacity(0.6) grayscale(1) brightness(1.5); }
+.mm .stepStrip .led.green { filter: sepia(1) saturate(6) hue-rotate(60deg) brightness(1.1) drop-shadow(0 0 3px #6f6); }
+.mm .stepStrip .led.red { filter: sepia(1) saturate(6) hue-rotate(-25deg) brightness(1.15) drop-shadow(0 0 3px #f05a3d); }
+.mm .stepStrip .led.yellow { filter: sepia(1) saturate(6) hue-rotate(10deg) brightness(1.3) drop-shadow(0 0 3px #fd4); }
+.mm .stepStrip .trig { background: #27312f; border-color: #101714; }
+.mm .stepStrip .trig.down { background: #c96a40; }
+.mm .stepStrip .legend { text-align: center; }
+.bracket { background: #898a84; }
+.setupLabel { color: #353630; font-size: 8px; line-height: 12px; height: 28px; text-align: center; white-space: nowrap; }
+.pairLabel { color: #353630; font-size: 9px; font-weight: bold; height: 10px; line-height: 10px; white-space: nowrap; text-align: center; }
+.pairLabel .action { color: #a04d39; }
+.bankRule { background: #74756f; }
+.bankLed { width: 10px; height: 10px; background: url(mmBankLed.png) center/contain no-repeat; }
+.bankLed.lit { background-image: url(mmBankLedLit.png); }
+.mm .recordIcon { background: #8a3a2c; }
+.mm .recordIcon.lit { background: #ff5a3a; box-shadow: 0 0 4px #ff5a3a; }
+.mm .playIcon { filter: brightness(0.25); }
+.trigModeLabel { color: #353630; font-size: 9px; text-align: left; height: 14px; line-height: 14px; white-space: nowrap; }
+.miniLabel.bold { font-weight: bold; letter-spacing: 1px; height: 13px; line-height: 13px; }
