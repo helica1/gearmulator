@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Machinedrum</title>
+<link rel="stylesheet" href="panel.css">
+</head>
+<body>
+<div id="stage">
+<div id="panel" class="panel md">
+
+	<div class="portLabel" style="left:95px;top:3px;width:50px">PHONES</div>
+	<div class="portLabel" style="left:154px;top:3px;width:50px">A / LEFT</div>
+	<div class="portLabel" style="left:210px;top:3px;width:54px">B / RIGHT</div>
+	<div class="portLabel" style="left:280px;top:3px;width:40px">C</div>
+	<div class="portLabel" style="left:340px;top:3px;width:40px">D</div>
+	<div class="portLabel" style="left:400px;top:3px;width:40px">E</div>
+	<div class="portLabel" style="left:459px;top:3px;width:40px">F</div>
+	<div class="guide" style="left:164px;top:20px;width:22px;height:1px"></div>
+	<div class="portLabel" style="left:188px;top:17px;width:46px">MAIN OUT</div>
+	<div class="guide" style="left:236px;top:20px;width:20px;height:1px"></div>
+	<div class="portLabel" style="left:519px;top:3px;width:34px">A</div>
+	<div class="portLabel" style="left:579px;top:3px;width:34px">B</div>
+	<div class="guide" style="left:524px;top:20px;width:28px;height:1px"></div>
+	<div class="portLabel" style="left:554px;top:17px;width:30px">INPUT</div>
+	<div class="guide" style="left:586px;top:20px;width:28px;height:1px"></div>
+	<div class="portLabel" style="left:689px;top:3px;width:42px">IN</div>
+	<div class="portLabel" style="left:755px;top:3px;width:42px">OUT</div>
+	<div class="portLabel" style="left:818px;top:3px;width:48px">THRU</div>
+	<div class="guide" style="left:694px;top:20px;width:68px;height:1px"></div>
+	<div class="portLabel" style="left:764px;top:17px;width:24px">MIDI</div>
+	<div class="guide" style="left:790px;top:20px;width:68px;height:1px"></div>
+	<div class="portLabel" style="left:937px;top:3px;width:56px">DC IN</div>
+	<div class="portLabel" style="left:1039px;top:3px;width:61px">POWER</div>
+
+	<div class="screw" style="left:30px;top:18px"></div>
+	<div class="screw" style="left:653px;top:18px"></div>
+	<div class="screw" style="left:1072px;top:18px"></div>
+	<div class="screw" style="left:18px;top:546px"></div>
+	<div class="screw" style="left:545px;top:546px"></div>
+	<div class="screw" style="left:1072px;top:546px"></div>
+	<div class="ruleV" style="left:332px;top:36px;height:398px"></div>
+	<div class="ruleV" style="left:655px;top:36px;height:398px"></div>
+	<div class="ruleV" style="left:907px;top:311px;height:123px"></div>
+	<div class="ruleH shadow" style="top:310px"></div>
+	<div class="ruleH highlight" style="top:311px"></div>
+	<div class="ruleH shadow" style="top:433px"></div>
+	<div class="ruleH highlight" style="top:434px"></div>
+
+	<!-- left: master, sound selection, mode, wheel, function -->
+	<div class="masterMark" style="left:64px;top:31px;width:2px;height:8px"></div>
+	<div class="masterMark dot" style="left:36px;top:78px"></div>
+	<div class="masterMark dot" style="left:88px;top:78px"></div>
+	<div class="knob master" id="encMaster" style="left:42px;top:40px"><div class="cap"></div></div>
+	<div class="panelLabel" style="left:17px;top:96px;width:96px">MASTER VOLUME</div>
+	<div class="titleRule" style="left:129px;top:58px;width:169px;height:20px"><span>SOUND SELECTION</span></div>
+	<div id="soundSelect" class="soundSelect" style="left:130px;top:72px;width:167px;height:57px"></div>
+	<div class="led modeDot" id="ledClassic" style="left:38px;top:127px"></div>
+	<div class="modeLabel" style="left:52px;top:124px;width:72px">CLASSIC</div>
+	<div class="led modeDot" id="ledExtended" style="left:38px;top:143px"></div>
+	<div class="modeLabel" style="left:52px;top:140px;width:72px">EXTENDED</div>
+	<div class="key" data-control="ClassicExtended" style="left:35px;top:167px"></div>
+	<div class="knob wheel" id="encSound" data-encoder="SoundSelection" style="left:129px;top:142px"><div class="cap"></div></div>
+	<div class="functionBezel" style="left:29px;top:239px;width:64px;height:50px"></div>
+	<div class="functionLegend" style="left:30px;top:240px;width:62px">FUNCTION</div>
+	<div class="key light" data-control="Function" style="left:35px;top:254px"></div>
+
+	<!-- center display -->
+	<div class="screenPanel" style="left:332px;top:36px;width:323px;height:275px"></div>
+	<div class="lcd" style="left:380px;top:127px;width:228px;height:124px"><canvas id="lcd" width="128" height="64"></canvas></div>
+	<div class="stripe" style="left:333px;top:213px"></div><div class="stripe" style="left:608px;top:213px"></div>
+	<div class="stripe" style="left:333px;top:218px"></div><div class="stripe" style="left:608px;top:218px"></div>
+	<div class="stripe" style="left:333px;top:223px"></div><div class="stripe" style="left:608px;top:223px"></div>
+	<div class="stripe" style="left:333px;top:228px"></div><div class="stripe" style="left:608px;top:228px"></div>
+
+	<!-- right: level, tempo, data entry -->
+	<div class="knob" id="encLevel" data-encoder="Level" style="left:688px;top:128px"><div class="cap"></div></div>
+	<div class="panelLabel" style="left:682px;top:177px;width:58px">LEVEL</div>
+	<div class="led" id="ledTempo" style="left:687px;top:198px"></div>
+	<div class="miniLabel" style="left:700px;top:195px;width:44px;text-align:left">TEMPO</div>
+	<div class="key" data-control="Tempo" style="left:684px;top:222px"></div>
+	<div class="titleRule" style="left:778px;top:117px;width:300px;height:8px"><span>DATA ENTRY</span></div>
+	<div id="dataEntry" class="dataEntry" style="left:779px;top:128px;width:298px;height:140px"></div>
+	<div class="guide" style="left:820px;top:275px;width:180px;height:1px"></div>
+	<div class="guide" style="left:820px;top:275px;width:1px;height:8px"></div>
+	<div class="guide" style="left:878px;top:275px;width:1px;height:8px"></div>
+	<div class="guide" style="left:936px;top:275px;width:1px;height:8px"></div>
+	<div class="led" id="stSynth" style="left:815px;top:282px"></div>
+	<div class="pageLabel" style="left:828px;top:280px;width:44px">SYNTHESIS</div>
+	<div class="led" id="stFx" style="left:873px;top:282px"></div>
+	<div class="pageLabel" style="left:885px;top:280px;width:42px">EFFECTS</div>
+	<div class="led" id="stRoute" style="left:931px;top:282px"></div>
+	<div class="pageLabel" style="left:943px;top:280px;width:44px">ROUTING</div>
+	<div class="key" data-control="SynthesisEffectsRouting" style="left:1000px;top:273px"></div>
+	<div class="verticalTab" style="left:1057px;top:273px">L<br>F<br>O</div>
+
+	<!-- lower left: pattern selection -->
+	<div class="titleRule" style="left:16px;top:321px;width:307px;height:9px"><span>PATTERN SELECTION</span></div>
+	<div class="key" data-control="BankGroup" style="left:23px;top:328px"></div>
+	<div class="secondary plain" style="left:20px;top:365px;width:68px">BANK GROUP</div>
+	<div class="guide" style="left:83px;top:341px;width:215px;height:1px"></div>
+	<div class="bankLetter" style="left:83px;top:324px">A</div><div class="bankLetter" style="left:143px;top:324px">B</div>
+	<div class="bankLetter" style="left:202px;top:324px">C</div><div class="bankLetter" style="left:262px;top:324px">D</div>
+	<div class="bankLetter" style="left:83px;top:344px">E</div><div class="bankLetter" style="left:143px;top:344px">F</div>
+	<div class="bankLetter" style="left:202px;top:344px">G</div><div class="bankLetter" style="left:262px;top:344px">H</div>
+	<div class="led bankInd top" id="ledBankAD" style="left:304px;top:327px"></div>
+	<div class="led bankInd" id="ledBankEH" style="left:304px;top:346px"></div>
+	<div class="guide" style="left:107px;top:358px;width:1px;height:17px"></div>
+	<div class="guide" style="left:167px;top:358px;width:1px;height:17px"></div>
+	<div class="guide" style="left:226px;top:358px;width:1px;height:17px"></div>
+	<div class="guide" style="left:286px;top:358px;width:1px;height:17px"></div>
+	<div class="captionedKey" style="left:82px;top:379px"><div class="key" data-control="BankA"></div><div class="secondary">MUTE</div></div>
+	<div class="captionedKey" style="left:143px;top:379px"><div class="key" data-control="BankB"></div><div class="secondary">ACCENT</div></div>
+	<div class="captionedKey" style="left:203px;top:379px"><div class="key" data-control="BankC"></div><div class="secondary">SWING</div></div>
+	<div class="captionedKey" style="left:264px;top:379px"><div class="key" data-control="BankD"></div><div class="secondary">SLIDE</div></div>
+
+	<!-- center navigation -->
+	<div class="twoLine" style="left:356px;top:327px"><div class="action">ENTER</div><div>YES</div></div>
+	<div class="key light" data-control="Enter" style="left:394px;top:327px"></div>
+	<div class="key" data-control="Up" style="left:527px;top:327px"><div class="glyph up"></div></div>
+	<div class="twoLine" style="left:356px;top:377px"><div class="action">EXIT</div><div>NO</div></div>
+	<div class="key light" data-control="Exit" style="left:394px;top:377px"></div>
+	<div class="key" data-control="Left" style="left:467px;top:377px"><div class="glyph left"></div></div>
+	<div class="key" data-control="Down" style="left:527px;top:377px"><div class="glyph down"></div></div>
+	<div class="key" data-control="Right" style="left:587px;top:377px"><div class="glyph right"></div></div>
+
+	<!-- transport, pattern/song, kit -->
+	<div class="recordIcon" style="left:728px;top:358px"></div>
+	<div class="playIcon" style="left:786px;top:355px"></div>
+	<div class="stopIcon" style="left:845px;top:358px"></div>
+	<div class="led" id="ledRecord" style="left:688px;top:387px"></div>
+	<div class="captionedKey" style="left:704px;top:377px"><div class="key record" data-control="Record"></div><div class="secondary">COPY</div></div>
+	<div class="captionedKey" style="left:765px;top:377px"><div class="key" data-control="Play"></div><div class="secondary">CLEAR</div></div>
+	<div class="captionedKey" style="left:823px;top:377px"><div class="key light" data-control="Stop"></div><div class="secondary">PASTE</div></div>
+	<div class="statusItem" style="left:943px;top:337px"><div class="led" id="stPattern"></div><div class="statusLabel">PATTERN</div></div>
+	<div class="statusItem" style="left:943px;top:355px"><div class="led" id="stSong"></div><div class="statusLabel">SONG</div></div>
+	<div class="titleRule" style="left:1011px;top:363px;width:56px;height:8px"><span>KIT</span></div>
+	<div class="captionedKey" style="left:943px;top:377px"><div class="key" data-control="PatternSong"></div><div class="secondary">GLOBAL</div></div>
+	<div class="captionedKey" style="left:1015px;top:377px"><div class="key" data-control="Kit"></div><div class="secondary compact">SONG SETUP</div></div>
+
+	<!-- step strip -->
+	<div id="stepStrip" class="stepStrip" style="left:39px;top:447px;width:960px;height:89px"></div>
+
+	<!-- scale cluster -->
+	<div class="scaleCluster" style="left:1002px;top:443px;width:77px;height:94px">
+		<div class="titleRule scaleRule" style="left:9px;top:6px;width:58px;height:8px"><span>1/64</span></div>
+		<div class="scalePages">
+			<div class="scaleCell"><div class="led scaleDot" id="mdPatternPage0"></div><div class="scaleLabel">1:4</div></div>
+			<div class="scaleCell"><div class="led scaleDot" id="mdPatternPage1"></div><div class="scaleLabel">2:4</div></div>
+			<div class="scaleCell"><div class="led scaleDot" id="mdPatternPage2"></div><div class="scaleLabel">3:4</div></div>
+			<div class="scaleCell"><div class="led scaleDot" id="mdPatternPage3"></div><div class="scaleLabel">4:4</div></div>
+		</div>
+		<div class="key" data-control="Scale" style="left:12px;top:50px"></div>
+		<div class="secondary compact" style="left:12px;top:81px;width:52px">SCALE SETUP</div>
+	</div>
+</div>
+</div>
+<div id="overlay"><div id="overlayText">Connecting to the machine...</div></div>
+<script src="panel.js"></script>
+</body>
+</html>

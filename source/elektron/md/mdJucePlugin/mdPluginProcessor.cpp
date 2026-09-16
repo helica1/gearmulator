@@ -363,6 +363,8 @@ namespace mdJucePlugin
 		getController();
 		const auto latencyBlocks = getConfig().getIntValue("latencyBlocks", static_cast<int>(getPlugin().getLatencyBlocks()));
 		Processor::setLatencyBlocks(latencyBlocks);
+		if(_allowMcpServer && !_ephemeralConfig)
+			startRemotePanel();
 		m_startupDiagnosticsEnabled = !_ephemeralConfig
 			&& juce::JUCEApplicationBase::isStandaloneApp();
 		if(m_startupDiagnosticsEnabled)
@@ -407,8 +409,92 @@ namespace mdJucePlugin
 	AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 	{
 		stopTimer();
+		m_remotePanel.reset();
 		m_performanceReport.reset();
 		destroyEditorState();
+	}
+
+	void AudioPluginAudioProcessor::startRemotePanel()
+	{
+		if(m_remotePanel)
+			return;
+		if(!getConfig().getBoolValue("remotePanelEnabled", true))
+			return;
+
+		const auto defaultPort = m_model == md::MachineModel::Monomachine ? 8792 : 8790;
+		const auto port = getConfig().getIntValue("remotePanelPort", defaultPort);
+
+		md::RemotePanelServer::Callbacks callbacks;
+		callbacks.sendPanelEvent = [this](const uint8_t _command, const uint8_t _argument)
+		{
+			return getPlugin().withDeviceLocked([&](synthLib::Device* const _device)
+			{
+				auto* const device = dynamic_cast<md::Device*>(_device);
+				return device ? device->sendPanelEvent(_command, _argument) : false;
+			});
+		};
+		callbacks.snapshot = [this]
+		{
+			return getPlugin().withDeviceLocked([&](synthLib::Device* const _device) -> md::FrontPanel
+			{
+				auto* const device = dynamic_cast<md::Device*>(_device);
+				return device ? device->getFrontPanelSnapshot() : md::FrontPanel();
+			});
+		};
+		callbacks.resource = [this](const std::string& _path, std::string& _data, std::string& _mime)
+		{
+			// a "remote" folder next to the firmware overrides the embedded web app, handy while editing it
+			const auto file = juce::File(juce::String::fromUTF8(getDataFolder().c_str())).getChildFile("remote").getChildFile(juce::String::fromUTF8(_path.c_str()));
+			if(file.existsAsFile())
+			{
+				juce::MemoryBlock block;
+				if(file.loadFileAsData(block))
+				{
+					_data.assign(static_cast<const char*>(block.getData()), block.getSize());
+					_mime.clear();
+					return true;
+				}
+			}
+			if(const auto res = findResource(_path))
+			{
+				_data.assign(res->first, res->second);
+				_mime.clear();
+				return true;
+			}
+			return false;
+		};
+
+		m_remotePanel = std::make_unique<md::RemotePanelServer>(m_model, port, std::move(callbacks));
+		if(!m_remotePanel->start())
+		{
+			m_remotePanel.reset();
+			return;
+		}
+
+		const auto url = getRemotePanelUrl();
+		juce::Logger::writeToLog("Remote panel: " + juce::String(url));
+		const auto folder = juce::File(juce::String::fromUTF8(getDataFolder().c_str()));
+		if(folder.createDirectory().wasOk())
+			folder.getChildFile("remote-panel-url.txt").replaceWithText(juce::String(url) + "\n");
+	}
+
+	std::string AudioPluginAudioProcessor::getRemotePanelUrl() const
+	{
+		if(!m_remotePanel)
+			return {};
+		juce::String host = "localhost";
+		for(const auto& address : juce::IPAddress::getAllAddresses(false))
+		{
+			if(address.isNull() || address == juce::IPAddress::local() || address.isIPv6)
+				continue;
+			// prefer the usual private LAN ranges over link-local
+			const auto s = address.toString();
+			if(s.startsWith("169.254."))
+				continue;
+			host = s;
+			break;
+		}
+		return "http://" + host.toStdString() + ":" + std::to_string(m_remotePanel->getPort()) + "/";
 	}
 
 	juce::File AudioPluginAudioProcessor::performanceDiagnosticsFolder() const

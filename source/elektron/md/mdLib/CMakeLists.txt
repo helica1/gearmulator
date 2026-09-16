@@ -22,6 +22,7 @@ set(SOURCES
 	mdsysexautomation.cpp mdsysexautomation.h
 	mdrealtimemidiqueue.h
 	mdpanel.cpp mdpanel.h
+	mdremotepanel.cpp mdremotepanel.h
 	mdsim.cpp mdsim.h
 	mdrom.cpp mdrom.h
 	mdromdata.cpp mdromdata.h
@@ -40,7 +41,7 @@ set(SOURCES
 target_sources(mdLib PRIVATE ${SOURCES})
 source_group("source" FILES ${SOURCES})
 
-target_link_libraries(mdLib PUBLIC hardwareLib dsp56kEmu)
+target_link_libraries(mdLib PUBLIC hardwareLib dsp56kEmu networkLib)
 target_compile_definitions(mdLib PUBLIC
 	MD_TRANSPORT_DIAGNOSTICS=$<BOOL:${MD_TRANSPORT_DIAGNOSTICS}>)
 

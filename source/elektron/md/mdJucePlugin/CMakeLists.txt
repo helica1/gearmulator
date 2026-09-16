@@ -61,12 +61,14 @@ file(GLOB MM_SKIN_ASSETS CONFIGURE_DEPENDS
 	"skins/mmSfx60/*.png" "skins/mmSfx60/*.rml" "skins/mmSfx60/*.rcss"
 	"skins/mmSfx60/*.ttf" "skins/mmSfx60/*.lua")
 
+file(GLOB REMOTE_PANEL_ASSETS CONFIGURE_DEPENDS "remote/*")
+
 juce_add_binary_data(mdJucePlugin_BinaryData SOURCES
 	${COMMON_ASSETS} "tus_settings_gui_Machinedrum.rml"
-	"tus_settings_dspaudio_Machinedrum.rml" ${MD_SKIN_ASSETS})
+	"tus_settings_dspaudio_Machinedrum.rml" ${MD_SKIN_ASSETS} ${REMOTE_PANEL_ASSETS})
 juce_add_binary_data(mmJucePlugin_BinaryData SOURCES
 	${COMMON_ASSETS} "tus_settings_gui_Monomachine.rml"
-	"tus_settings_dspaudio_Monomachine.rml" ${MM_SKIN_ASSETS})
+	"tus_settings_dspaudio_Monomachine.rml" ${MM_SKIN_ASSETS} ${REMOTE_PANEL_ASSETS})
 
 createJucePlugin(mdJucePlugin "Gearmulator MD" TRUE "Tmdr" mdJucePlugin_BinaryData mdLib)
 createJucePlugin(mmJucePlugin "Gearmulator MM" TRUE "Tmno" mmJucePlugin_BinaryData mdLib)

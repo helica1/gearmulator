@@ -1,6 +1,7 @@
 #pragma once
 
 #include "jucePluginEditorLib/pluginProcessor.h"
+#include "mdLib/mdremotepanel.h"
 #include "mdLib/mdtypes.h"
 #include "synthLib/performanceReport.h"
 
@@ -48,6 +49,11 @@ namespace mdJucePlugin
 		juce::File performanceDiagnosticsFolder() const;
 		juce::File performanceDiagnosticsFile() const { return m_performanceReportFile; }
 
+		// Browser front panel for tablets on the local network, see mdLib/mdremotepanel.h
+		void startRemotePanel();
+		std::string getRemotePanelUrl() const;
+		bool isRemotePanelRunning() const { return m_remotePanel && m_remotePanel->isRunning(); }
+
 	    jucePluginEditorLib::PluginEditorState* createEditorState() override;
 	    synthLib::Device* createDevice() override;
 		void getRemoteDeviceParams(synthLib::DeviceCreateParams& _params) const override;
@@ -70,6 +76,7 @@ namespace mdJucePlugin
 		void timerCallback() override;
 
 		std::unique_ptr<synthLib::PerformanceReport> m_performanceReport;
+		std::unique_ptr<md::RemotePanelServer> m_remotePanel;
 		juce::File m_performanceReportFile;
 		bool m_performanceFolderError = false;
 		const md::MachineModel m_model;
