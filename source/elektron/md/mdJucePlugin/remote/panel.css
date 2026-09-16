@@ -1,5 +1,9 @@
 /* Machinedrum remote panel. Geometry mirrors skins/mdDefault/mdDefault.rml (1 dp = 1 px at scale 1). */
 
+/* every element: no browser gestures. Without this, a second finger on an encoder while a trig key is
+   held starts a pinch and Safari cancels the first pointer, which releases the trig and turns a
+   parameter lock into a plain parameter change. */
+* { touch-action: none; -webkit-touch-callout: none; }
 html, body {
 	margin: 0; padding: 0; background: #17181a; height: 100%; overflow: hidden;
 	font-family: Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;

@@ -217,6 +217,9 @@
 			el.addEventListener('pointercancel', up);
 			el.addEventListener('lostpointercapture', up);
 		});
+		// a touch that starts anywhere else must not become a browser gesture either
+		document.addEventListener('touchstart', function (ev) { if (ev.touches.length > 1) ev.preventDefault(); }, { passive: false });
+		document.addEventListener('touchmove', function (ev) { ev.preventDefault(); }, { passive: false });
 		// the sound selection names select their track directly
 		document.querySelectorAll('.soundSelect .name').forEach(function (el) {
 			el.addEventListener('pointerdown', function (ev) {
