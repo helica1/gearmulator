@@ -79,6 +79,7 @@ namespace mdJucePlugin
 		bool hasStorageRecoveryImage() const;
 
 		// Firmware image (stock OS or a community OS such as X.13 / EMS) for this instance
+		void bindSettingsButton();
 		void chooseFirmwareImage();
 		void useStockFirmware();
 		std::string getFirmwareDescription() const;

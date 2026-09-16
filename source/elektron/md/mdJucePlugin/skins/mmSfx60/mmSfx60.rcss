@@ -431,3 +431,18 @@ body
 	border-color: #7b4035;
 	color: #f0eee7;
 }
+
+/* settings gear, top left of the faceplate rail */
+.elektronGear
+{
+	background-color: #00000000;
+	border: 0dp #00000000;
+	cursor: pointer;
+	decorator: image(elektronGear.png contain center);
+	image-color: #7c4035;
+}
+
+.elektronGear:hover
+{
+	image-color: #d0583c;
+}

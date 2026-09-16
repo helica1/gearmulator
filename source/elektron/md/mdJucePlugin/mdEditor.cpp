@@ -279,6 +279,7 @@ namespace mdJucePlugin
 		}
 
 		createLcd();
+		bindSettingsButton();
 		createButtons();
 		createEncoders();
 		createMasterVolume();
@@ -317,6 +318,13 @@ namespace mdJucePlugin
 					return device && device->retireUserSysexImport(progress->ticket, retiredPayload);
 				});
 		}
+	}
+
+	void Editor::bindSettingsButton()
+	{
+		// gear icon in the skin: opens the settings panel (firmware, panel feel, audio)
+		if(auto* const gear = findChild("btSettings", false))
+			juceRmlUi::EventListener::AddClick(gear, [this] { toggleSettings(); });
 	}
 
 	void Editor::createLcd()

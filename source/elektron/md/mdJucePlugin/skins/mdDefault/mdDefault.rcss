@@ -417,3 +417,18 @@ body
 	speed: 1360;
 	spriteprefix: "mdSoundKnob_";
 }
+
+/* settings gear, top left of the faceplate rail */
+.elektronGear
+{
+	background-color: #00000000;
+	border: 0dp #00000000;
+	cursor: pointer;
+	decorator: image(elektronGear.png contain center);
+	image-color: #7b4035;
+}
+
+.elektronGear:hover
+{
+	image-color: #d05f3d;
+}

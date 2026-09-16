@@ -40,6 +40,7 @@
 
 		<!-- Chassis fasteners and the measured major hardware boundaries. -->
 
+		<div id="btSettings" class="jucePos elektronGear" title="Settings (firmware, panel, audio)" style="left: 8dp; top: 6dp; width: 16dp; height: 16dp;"/>
 		<div class="jucePos mdScrew" style="left: 30dp; top: 18dp; width: 10dp; height: 10dp;"/>
 		<div class="elektronPixelRule jucePos mdScrewSlot" style="left: 33dp; top: 22dp; width: 4dp; height: 1dp;"/>
 		<div class="jucePos mdScrew" style="left: 653dp; top: 18dp; width: 10dp; height: 10dp;"/>
