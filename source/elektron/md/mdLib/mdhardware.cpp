@@ -130,8 +130,14 @@ namespace md
 		{
 			m_midiSysexTransfer.observeTransmitByte(_byte);
 		});
+		// The on-demand link model arms itself only once the DSPs are observed using the
+		// on-demand wire (see mdLinkWindowFlushed), so it applies to any Machinedrum OS on
+		// the stock boot loader, including community builds such as X.13. Gating it on
+		// the exact OS 1.63 fingerprint left those on the legacy path, which drops and
+		// purges link words (audible clicks and aliasing).
 		m_mdOnDemandRendezvousArmPending = !isMonomachine()
-			&& m_firmwareFingerprint == g_mdOs163Fingerprint;
+			&& (m_firmwareFingerprint == g_mdOs163Fingerprint
+				|| RomLoader::hasStockBootLoader(m_rom.data(), MachineModel::Machinedrum));
 
 		// Wake the scheduler host pump when either DSP produces a host word or
 		// the UC-side port state changes. The pump itself runs only on a wake

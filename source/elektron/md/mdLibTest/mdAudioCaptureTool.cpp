@@ -156,6 +156,7 @@ int main(const int argc, char* argv[])
 		outputs[c] = chan[c].data();
 
 	const uint32_t total = md::g_samplerate * seconds;
+	const auto scoreBefore = hardware.getTransportScorecard();
 	const auto dsp1Before = hardware.getDspMixer().dsp().getInstructionCounter();
 	const auto dsp2Before = hardware.getDspProducer().dsp().getInstructionCounter();
 	const auto ucBefore = hardware.getUC().getCycles();
@@ -191,13 +192,38 @@ int main(const int argc, char* argv[])
 
 	std::ofstream(prefix + "_out.bin", std::ios::binary).write(reinterpret_cast<const char*>(outAll.data()), static_cast<std::streamsize>(outAll.size() * 4));
 
-	const auto score = hardware.getTransportScorecard();
+	auto score = hardware.getTransportScorecard();
+	for(size_t i = 0; i < 2; ++i)
+	{
+		auto& l = score.link[i]; const auto& b = scoreBefore.link[i];
+		l.transmitFrames -= b.transmitFrames; l.acceptedFrames -= b.acceptedFrames; l.ringFullDrops -= b.ringFullDrops;
+		l.receiverDisabledDrops -= b.receiverDisabledDrops; l.mdRendezvousRetainedDrops -= b.mdRendezvousRetainedDrops;
+		l.mdRendezvousUnreleasedDrops -= b.mdRendezvousUnreleasedDrops; l.mdRendezvousDmaInactiveDrops -= b.mdRendezvousDmaInactiveDrops;
+		l.mdRendezvousRingFullDrops -= b.mdRendezvousRingFullDrops; l.mdWindowOpenedDuringCatchUpDrops -= b.mdWindowOpenedDuringCatchUpDrops;
+		l.mdReceiverOverrunDrops -= b.mdReceiverOverrunDrops; l.mdPostFlushRetainedDrops -= b.mdPostFlushRetainedDrops;
+		l.poppedFrames -= b.poppedFrames; l.emptyReads -= b.emptyReads; l.stallPurgedFrames -= b.stallPurgedFrames;
+		l.mdWindowPurgedFrames -= b.mdWindowPurgedFrames; l.mmStrobePurgedFrames -= b.mmStrobePurgedFrames;
+	}
 	std::cerr << "scorecard (transport diagnostics compiled " << (score.enabled ? "in" : "out") << "):\n";
 	for(size_t i = 0; i < 2; ++i)
 	{
 		const auto& l = score.link[i];
-		std::cerr << "  link[" << i << "] transmit=" << l.transmitFrames << " ringFullDrops=" << l.ringFullDrops
-			<< " emptyReads=" << l.emptyReads << " purged=" << l.purgedFrames() << "\n";
+		std::cerr << "  link[" << i << "] transmit=" << l.transmitFrames << " accepted=" << l.acceptedFrames
+			<< " ringFullDrops=" << l.ringFullDrops << " receiverDisabledDrops=" << l.receiverDisabledDrops
+			<< " rendezvousRetained=" << l.mdRendezvousRetainedDrops << " rendezvousUnreleased=" << l.mdRendezvousUnreleasedDrops
+			<< " rendezvousDmaInactive=" << l.mdRendezvousDmaInactiveDrops << " rendezvousRingFull=" << l.mdRendezvousRingFullDrops
+			<< " windowOpenedDuringCatchUp=" << l.mdWindowOpenedDuringCatchUpDrops << " receiverOverrun=" << l.mdReceiverOverrunDrops
+			<< " postFlushRetained=" << l.mdPostFlushRetainedDrops
+			<< " popped=" << l.poppedFrames << " emptyReads=" << l.emptyReads
+			<< " stallPurged=" << l.stallPurgedFrames << " windowPurged=" << l.mdWindowPurgedFrames << "\n";
+	}
+	{
+		auto& pe = hardware.getDspProducer().getPeriph().getEssi0();
+		auto& me = hardware.getDspMixer().getPeriph().getEssi0();
+		std::cerr << "  md rendezvous active=" << score.mdRendezvousActive
+			<< " producer ESSI0 networkMode=" << pe.getCRB().test(dsp56k::Essi::RegCRBbits::CRB_MOD)
+			<< " txWordCount=" << pe.getTxWordCount()
+			<< " | mixer fastLinkRx=" << me.isFastLinkRx() << "\n";
 	}
 	std::cerr << "  hostAudioOverflow=" << hardware.hostAudioOverflowCount()
 		<< " scheduledMidiOverflow=" << hardware.scheduledMidiOverflowCount()

@@ -21,6 +21,7 @@
 #include "juce_audio_utils/juce_audio_utils.h"
 #include "juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h"
 
+#include <cstdlib>
 #include <memory>
 #include <utility>
 
@@ -951,7 +952,10 @@ namespace mdJucePlugin
 
 	std::string AudioPluginAudioProcessor::initialFirmwareImagePath(juce::PropertiesFile& _config, const md::MachineModel _model)
 	{
-		const auto path = _config.getValue(g_firmwareImageConfigKey).toStdString();
+		// test hook: GEARMULATOR_FIRMWARE_IMAGE overrides the configured image without touching the config
+		const auto* const overridePath = std::getenv("GEARMULATOR_FIRMWARE_IMAGE");
+		const auto path = overridePath && *overridePath ? std::string(overridePath)
+			: _config.getValue(g_firmwareImageConfigKey).toStdString();
 		if(path.empty())
 			return {};
 		std::fprintf(stderr, "[MD] configured firmware image: %s\n", path.c_str());
