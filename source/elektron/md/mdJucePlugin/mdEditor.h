@@ -77,6 +77,11 @@ namespace mdJucePlugin
 		void chooseStorageImage();
 		void restorePreviousStorage();
 		bool hasStorageRecoveryImage() const;
+
+		// Firmware image (stock OS or a community OS such as X.13 / EMS) for this instance
+		void chooseFirmwareImage();
+		void useStockFirmware();
+		std::string getFirmwareDescription() const;
 		void chooseUserSysexFile();
 		void cancelUserSysexTransfer();
 		bool canResumeUserSysexTransfer() const;
@@ -247,6 +252,9 @@ namespace mdJucePlugin
 		std::array<RawLedElem, 4> m_mdPageLeds{};
 		std::array<RawLedElem, 20> m_mmPanelLeds{};
 		std::unique_ptr<juce::FileChooser> m_storageFileChooser;
+		std::unique_ptr<juce::FileChooser> m_firmwareFileChooser;
+		bool m_firmwareDialogOpen = false;
+		void confirmFirmwareImage(const std::string& _path);
 		StorageImageFlow m_storageImageFlow = StorageImageFlow::None;
 		std::unique_ptr<juce::FileChooser> m_sysexFileChooser;
 		bool m_sysexChooserOpen = false;

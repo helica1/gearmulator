@@ -797,6 +797,65 @@ int main()
 				!= std::string::npos,
 			"malformed Monomachine state did not retain a model-specific diagnostic");
 
+		// The firmware image chosen for an instance travels with the project state and
+		// is applied before the machine state, so a project reopens on the OS it was
+		// saved with. Needs an alternative MD image (stock boot loader, other OS).
+		if(const auto* const altPath = std::getenv("GEARMULATOR_MD_ALT_FIRMWARE_BIN");
+			altPath && *altPath)
+		{
+			std::ifstream altInput(altPath, std::ios::binary);
+			const std::vector<uint8_t> altRom{
+				std::istreambuf_iterator<char>(altInput), std::istreambuf_iterator<char>()};
+			require(md::RomLoader::isRomForModel(altRom, md::MachineModel::Machinedrum)
+				&& !md::RomLoader::isStockRom(altRom, md::MachineModel::Machinedrum),
+				"alternative firmware fixture is not an accepted non-stock MD image");
+
+			Harness source(md::MachineModel::Machinedrum, false);
+			std::string error;
+			require(source.processor.setFirmwareImage(altPath, error),
+				"alternative firmware was not accepted: " + error);
+			require(source.processor.getFirmwareImagePath() == altPath,
+				"firmware selection was not recorded");
+			source.processor.getPlugin().withDeviceLocked([&](synthLib::Device* const _device)
+			{
+				auto* const device = dynamic_cast<md::Device*>(_device);
+				require(device && device->isValid()
+					&& device->getHardware().flashBaseline() == altRom,
+					"instance did not restart on the alternative firmware");
+			});
+			juce::MemoryBlock altState;
+			source.audioProcessor.getStateInformation(altState);
+
+			Harness target(md::MachineModel::Machinedrum, false);
+			require(target.processor.getFirmwareImagePath().empty(),
+				"fresh instance did not start on the stock OS");
+			juce::MemoryBlock stockState;
+			target.audioProcessor.getStateInformation(stockState);
+			target.audioProcessor.setStateInformation(altState.getData(),
+				static_cast<int>(altState.getSize()));
+			require(target.processor.getFirmwareImagePath() == altPath,
+				"project firmware selection was not restored");
+			target.processor.getPlugin().withDeviceLocked([&](synthLib::Device* const _device)
+			{
+				auto* const device = dynamic_cast<md::Device*>(_device);
+				require(device && device->isValid()
+					&& device->getHardware().flashBaseline() == altRom,
+					"restored instance is not running the project firmware");
+			});
+			target.audioProcessor.setStateInformation(stockState.getData(),
+				static_cast<int>(stockState.getSize()));
+			require(target.processor.getFirmwareImagePath().empty(),
+				"stock firmware was not restored from a stock project");
+			target.processor.getPlugin().withDeviceLocked([&](synthLib::Device* const _device)
+			{
+				auto* const device = dynamic_cast<md::Device*>(_device);
+				require(device && device->isValid()
+					&& device->getHardware().flashBaseline() == rom,
+					"restored instance is not back on the stock firmware");
+			});
+			std::cout << "mdProjectStateRestoreTest: firmware selection round trip PASS\n";
+		}
+
 		std::cout << "mdProjectStateRestoreTest: MD/MM PASS\n";
 		return 0;
 	}

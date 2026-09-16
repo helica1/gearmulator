@@ -49,6 +49,15 @@ namespace mdJucePlugin
 		juce::File performanceDiagnosticsFolder() const;
 		juce::File performanceDiagnosticsFile() const { return m_performanceReportFile; }
 
+		// Firmware image for this instance. Empty = the stock OS discovered next to the
+		// plugin or in the roms folder. A chosen image is remembered as the default for
+		// new instances (config) and travels with the project (state chunk "FWIM").
+		static constexpr const char* g_firmwareImageConfigKey = "firmwareImagePath";
+		const std::string& getFirmwareImagePath() const { return m_firmwareImagePath; }
+		std::string getFirmwareDescription() const;
+		// Restarts the machine on another OS image, from a fresh factory state.
+		bool setFirmwareImage(const std::string& _path, std::string& _error);
+
 		// Browser front panel for tablets on the local network, see mdLib/mdremotepanel.h
 		void startRemotePanel();
 		std::string getRemotePanelUrl() const;
@@ -69,6 +78,10 @@ namespace mdJucePlugin
 			std::vector<uint8_t> _initialPatchRam, bool _allowMcpServer,
 			bool _ephemeralConfig,
 			std::optional<std::string> _deviceHomePath = std::nullopt);
+		static std::string initialFirmwareImagePath(juce::PropertiesFile& _config, md::MachineModel _model);
+		bool readFirmwareImage(const std::string& _path, std::vector<uint8_t>& _data, std::string& _error) const;
+		std::string findFirmwareByFingerprint(uint64_t _fingerprint, const std::string& _hint) const;
+		void applyProjectFirmware(const std::string& _path, uint64_t _fingerprint);
 		bool serviceDeferredStateRestore();
 		bool serviceStateRestoreFailure();
 		void recordStandaloneStartupDiagnostics();
@@ -82,6 +95,9 @@ namespace mdJucePlugin
 		const md::MachineModel m_model;
 		const std::vector<uint8_t> m_initialPatchRam;
 		const std::optional<std::string> m_deviceHomePath;
+		const bool m_ephemeralConfig;
+		std::string m_firmwareImagePath;
+		uint64_t m_firmwareFingerprint = 0;
 		std::mutex m_storageLoadMutex;
 		uint64_t m_reportedRestoreFailureGeneration = 0;
 		juce::File m_startupDiagnosticsFile;

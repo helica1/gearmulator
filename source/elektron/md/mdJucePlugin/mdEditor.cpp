@@ -1347,6 +1347,95 @@ namespace mdJucePlugin
 			"Replace machine storage?", message.toStdString(), completion);
 	}
 
+	void Editor::chooseFirmwareImage()
+	{
+		if(m_firmwareDialogOpen)
+			return;
+		auto* const processor = dynamic_cast<AudioPluginAudioProcessor*>(&getProcessor());
+		if(!processor)
+			return;
+		auto& config = getProcessor().getConfig();
+		juce::File initial;
+		const auto current = processor->getFirmwareImagePath();
+		if(!current.empty())
+			initial = juce::File(current).getParentDirectory();
+		if(!initial.exists())
+		{
+			const auto lastDirectory = config.getValue("firmwareImageLastDirectory");
+			if(lastDirectory.isNotEmpty())
+				initial = juce::File(lastDirectory);
+		}
+		if(!initial.exists())
+			initial = juce::File(getProcessor().getPublicRomFolder());
+		if(!initial.exists())
+			initial = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+
+		m_firmwareDialogOpen = true;
+		m_firmwareFileChooser = std::make_unique<juce::FileChooser>(
+			std::string("Choose an 8 MiB ") + getSettingsTemplateSuffix() + " firmware image",
+			initial, "*.bin", true);
+		const auto safeRoot =
+			juce::Component::SafePointer<juceRmlUi::RmlComponent>(getRmlComponent());
+		m_firmwareFileChooser->launchAsync(
+			juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+			[this, safeRoot](const juce::FileChooser& _chooser)
+			{
+				if(!safeRoot)
+					return;
+				m_firmwareDialogOpen = false;
+				const auto file = _chooser.getResult();
+				if(!file.existsAsFile())
+					return;
+				getProcessor().getConfig().setValue("firmwareImageLastDirectory",
+					file.getParentDirectory().getFullPathName());
+				confirmFirmwareImage(file.getFullPathName().toStdString());
+			});
+	}
+
+	void Editor::useStockFirmware()
+	{
+		auto* const processor = dynamic_cast<AudioPluginAudioProcessor*>(&getProcessor());
+		if(!processor || processor->getFirmwareImagePath().empty())
+			return;
+		confirmFirmwareImage({});
+	}
+
+	void Editor::confirmFirmwareImage(const std::string& _path)
+	{
+		const auto safeRoot =
+			juce::Component::SafePointer<juceRmlUi::RmlComponent>(getRmlComponent());
+		const auto name = _path.empty() ? std::string("the stock OS")
+			: baseLib::filesystem::getFilenameWithoutPath(_path);
+		genericUI::MessageBox::showYesNo(genericUI::MessageBox::Icon::Question,
+			std::string("Switch ") + getSettingsTemplateSuffix() + " firmware",
+			"Restart the machine with " + name + "?\n\n"
+			"The machine boots from a fresh factory state on the new OS. Kits, patterns and "
+			"songs of the running machine are not carried over, save them via SysEx first if "
+			"you need them. The image becomes the default for new instances and is stored with "
+			"the project.",
+			[this, safeRoot, _path](const genericUI::MessageBox::Result _answer)
+			{
+				if(!safeRoot || _answer != genericUI::MessageBox::Result::Yes)
+					return;
+				auto* const processor = dynamic_cast<AudioPluginAudioProcessor*>(&getProcessor());
+				if(!processor)
+					return;
+				std::string error;
+				if(processor->setFirmwareImage(_path, error))
+					genericUI::MessageBox::showOk(genericUI::MessageBox::Icon::Info, "Firmware switched",
+						"The machine is now running " + processor->getFirmwareDescription(), getRmlComponent());
+				else
+					genericUI::MessageBox::showOk(genericUI::MessageBox::Icon::Warning, "Firmware unchanged",
+						"The image was not loaded: " + error, getRmlComponent());
+			});
+	}
+
+	std::string Editor::getFirmwareDescription() const
+	{
+		auto* const processor = dynamic_cast<const AudioPluginAudioProcessor*>(&getProcessor());
+		return processor ? processor->getFirmwareDescription() : std::string{};
+	}
+
 	void Editor::showStorageOperationResult(const bool _success,
 		const juce::String& _message)
 	{

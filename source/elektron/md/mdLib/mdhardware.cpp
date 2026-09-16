@@ -175,6 +175,8 @@ namespace md
 			return [txToRx, this, &_consumer, _selfDsp](uint64_t& _frameIndex, const dsp56k::Audio::TxFrame& _values)
 			{
 				MD_TRANSPORT_RECORD(++m_transportScorecard.link[_selfDsp].transmitFrames;);
+				if(m_linkTap)
+					m_linkTap(_selfDsp, _values);
 				dsp56k::Audio::RxFrame rx;
 				txToRx(_values, rx);
 				auto& ring = _consumer.getAudioInputs();

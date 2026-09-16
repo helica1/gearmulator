@@ -110,6 +110,43 @@ private:
 	JUCE_DECLARE_NON_MOVEABLE(JuceAppLifetimeObjects)
 };
 
+namespace
+{
+	// A host transport for instruments that follow the DAW clock: reports a running
+	// playhead at a fixed tempo, advancing by one block per processBlock call.
+	class FakePlayHead final : public juce::AudioPlayHead
+	{
+	public:
+		// _cycleSeconds > 0 alternates between playing and stopped, restarting from
+		// the song start each time, so instruments see Start/Stop transport edges.
+		FakePlayHead(const double _bpm, const double _samplerate, const int _blockSize, const double _cycleSeconds)
+			: m_bpm(_bpm), m_samplerate(_samplerate), m_blockSize(_blockSize)
+			, m_cycleSamples(_cycleSeconds > 0 ? static_cast<int64_t>(_cycleSeconds * _samplerate) : 0) {}
+
+		juce::Optional<PositionInfo> getPosition() const override
+		{
+			PositionInfo info;
+			const bool playing = m_cycleSamples <= 0 || ((m_samples / m_cycleSamples) & 1) == 0;
+			const auto position = m_cycleSamples > 0 ? m_samples % m_cycleSamples : m_samples;
+			info.setBpm(m_bpm);
+			info.setIsPlaying(playing);
+			info.setTimeInSamples(position);
+			info.setTimeInSeconds(static_cast<double>(position) / m_samplerate);
+			info.setPpqPosition(static_cast<double>(position) / m_samplerate * m_bpm / 60.0);
+			info.setTimeSignature(TimeSignature{4, 4});
+			m_samples += m_blockSize;
+			return info;
+		}
+
+	private:
+		const double m_bpm;
+		const double m_samplerate;
+		const int m_blockSize;
+		const int64_t m_cycleSamples;
+		mutable int64_t m_samples = 0;
+	};
+}
+
 int main(const int _argc, char* _argv[])
 {
 	baseLib::CommandLine cmdLine(_argc, _argv);
@@ -120,7 +157,7 @@ int main(const int _argc, char* _argv[])
 	{
 		Logger::writeToLog("Error: " + _msg);
 		Logger::writeToLog("Usage:\n"
-			"pluginTester -plugin <pathToPlugin> [-seconds n -blocks n -blocksize n -samplerate x -forever -repeat n -automation-smoke -verify-audio-buses -verify-audio-identity]");
+			"pluginTester -plugin <pathToPlugin> [-seconds n -blocks n -blocksize n -samplerate x -bpm x [-playcycle seconds] -forever -repeat n -automation-smoke -verify-audio-buses -verify-audio-identity]");
 		return 1;
 	};
 
@@ -266,6 +303,14 @@ int main(const int _argc, char* _argv[])
 			}
 			processor->releaseResources();
 			Logger::writeToLog("Verified exact A/B + E/F sample identity");
+		}
+
+		std::unique_ptr<FakePlayHead> playHead;
+		if (cmdLine.getFloat("bpm", 0.0f) > 0.0f)
+		{
+			playHead = std::make_unique<FakePlayHead>(cmdLine.getFloat("bpm", 120.0f), samplerate, blocksize, cmdLine.getFloat("playcycle", 0.0f));
+			processor->setPlayHead(playHead.get());
+			Logger::writeToLog("Transport running at " + String(cmdLine.getFloat("bpm", 120.0f)) + " BPM");
 		}
 
 		auto res = audioDevice.open(numIns, numOuts, samplerate, blocksize);

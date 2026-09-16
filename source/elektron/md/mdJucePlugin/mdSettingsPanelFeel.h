@@ -25,7 +25,9 @@ namespace mdJucePlugin
 		void bindGroup(Rml::Element* _root, const char* _idPrefix, const char* _configKey);
 		void updateRestoreAvailability();
 
+		void updateFirmwareLabel();
 		Editor& m_editor;
 		Rml::Element* m_restoreStorage = nullptr;
+		Rml::Element* m_firmwareLabel = nullptr;
 	};
 }

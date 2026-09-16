@@ -19,6 +19,17 @@
 </head>
 <body>
 	<settingsspacer1/>
+	<h1>Firmware</h1>
+	<settingsspacer1/>
+	<label id="lblFirmwareImage">Running: stock OS</label>
+	<settingsspacer1/>
+	<div class="settings-storage-actions">
+		<button id="btChooseFirmware" class="button">Load Firmware Image...</button>
+		<button id="btStockFirmware" class="button">Use Stock OS</button>
+	</div>
+	<settingsspacer1/>
+	<label>An 8 MiB flash image with the stock boot loader: the stock OS or a community OS such as Machinedrum X.13 or the Monomachine EMS firmware (make one from an OS upgrade .syx with tools/elektronOsToFlash.py). Switching restarts the machine from a fresh factory state. The choice becomes the default for new instances and is saved with the project.</label>
+	<settingsspacer1/>
 	<h1>Panel Rendering</h1>
 	<settingsspacer1/>
 	<div id="btPixelPerfectPanel" class="settings-checkboxwithlabel">

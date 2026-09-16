@@ -288,3 +288,8 @@ if(BUILD_TESTING)
 	set_tests_properties(mdTurboMidiUnitTest mdSdsTransferTest PROPERTIES FIXTURES_SETUP MdSysexTransport)
 	set_property(TEST mdLibTests mdAudioQueueTest APPEND PROPERTY FIXTURES_REQUIRED MdSysexTransport)
 endif()
+
+# Diagnostic tool, not a test: records the producer->mixer link words while a pattern plays.
+add_executable(mdLinkTapTest mdLinkTapTest.cpp)
+target_link_libraries(mdLinkTapTest PRIVATE mdLib)
+set_property(TARGET mdLinkTapTest PROPERTY FOLDER "Elektron")

@@ -46,6 +46,25 @@ namespace mdJucePlugin
 				m_editor.chooseStorageImage();
 			});
 		}
+		m_firmwareLabel = juceRmlUi::helper::findChild(_root, "lblFirmwareImage", false);
+		if(auto* const chooseFirmware = juceRmlUi::helper::findChild(_root, "btChooseFirmware", false))
+		{
+			juceRmlUi::EventListener::AddClick(chooseFirmware, [this]
+			{
+				m_editor.chooseFirmwareImage();
+			});
+		}
+		if(auto* const stockFirmware = juceRmlUi::helper::findChild(_root, "btStockFirmware", false))
+		{
+			juceRmlUi::EventListener::AddClick(stockFirmware, [this]
+			{
+				m_editor.useStockFirmware();
+			});
+		}
+		updateFirmwareLabel();
+		if(m_firmwareLabel && !isTimerRunning())
+			startTimerHz(2);
+
 		m_restoreStorage = juceRmlUi::helper::findChild(
 			_root, "btRestorePreviousStorage", false);
 		if(m_restoreStorage)
@@ -62,6 +81,16 @@ namespace mdJucePlugin
 	void SettingsPanelFeel::timerCallback()
 	{
 		updateRestoreAvailability();
+		updateFirmwareLabel();
+	}
+
+	void SettingsPanelFeel::updateFirmwareLabel()
+	{
+		if(!m_firmwareLabel)
+			return;
+		const auto text = "Running: " + m_editor.getFirmwareDescription();
+		if(m_firmwareLabel->GetInnerRML() != text)
+			m_firmwareLabel->SetInnerRML(text);
 	}
 
 	void SettingsPanelFeel::updateRestoreAvailability()

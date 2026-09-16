@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -52,6 +53,11 @@ namespace md
 	{
 	public:
 		using AudioOutputs = std::array<std::vector<dsp56k::TWord>, 6>;
+		// Diagnostics: observe every inter-DSP ESSI0 link frame as it is transmitted.
+		// _dsp is the sender, 0 = mixer (DSP1), 1 = producer (DSP2). Called on the
+		// scheduler thread, must not block.
+		using LinkTap = std::function<void(uint32_t _dsp, const dsp56k::Audio::TxFrame&)>;
+		void setLinkTap(LinkTap _tap) { m_linkTap = std::move(_tap); }
 		Hardware(const std::vector<uint8_t>& _romData = {}, const std::string& _romName = {},
 			MachineModel _model = MachineModel::Machinedrum,
 			const std::vector<uint8_t>& _initialPatchRam = {},
@@ -285,6 +291,7 @@ namespace md
 		// so the live SPSC publisher always has exactly one producer.
 		void setFrontPanelPublisher(std::shared_ptr<FrontPanelPublisher> _publisher);
 
+
 		void ensureBufferSize(uint32_t _frames);
 		void setHostAudioInputLatency(uint32_t _latency);
 		void queueHostAudioInput(uint32_t _frames);
@@ -321,6 +328,7 @@ namespace md
 		Dsp m_dspProducer;	// index 1 = DSP2 (0x600000), produces voices into the ring
 
 		AudioOutputs m_audioOutputs;
+		LinkTap m_linkTap;
 		// Per-machine age of the last shallow link ring. This participates in the
 		// MM stall-purge decision, so it must never be shared by concurrently
 		// running Hardware instances (as it was when this lived as a static local).

@@ -52,6 +52,17 @@ namespace
 	std::string mdFlashCacheFilename(const synthLib::DeviceCreateParams& _params,
 		const md::MachineModel _model)
 	{
+		// An alternative OS initialises its own factory flash; keep its cache apart
+		// from the stock one so the two do not keep invalidating each other.
+		if(_model == md::MachineModel::Machinedrum && !_params.homePath.empty()
+			&& !_params.romData.empty()
+			&& !md::RomLoader::isStockRom(_params.romData, _model))
+		{
+			char name[64];
+			std::snprintf(name, sizeof(name), "nvram/md-uw-%016llx-factory-v2.cache",
+				static_cast<unsigned long long>(md::RomLoader::fingerprint(_params.romData)));
+			return baseLib::filesystem::validatePath(_params.homePath) + name;
+		}
 		return mdFlashCacheFilename(_params.homePath, _model);
 	}
 
