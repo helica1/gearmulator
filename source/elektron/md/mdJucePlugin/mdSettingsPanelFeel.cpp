@@ -3,6 +3,7 @@
 #include "mdEditor.h"
 #include "mdLcdInteractionModel.h"
 #include "mdPixelPerfectPanel.h"
+#include "mdPluginProcessor.h"
 
 #include "jucePluginEditorLib/pluginProcessor.h"
 #include "jucePluginEditorLib/settingsPlugin.h"
@@ -29,6 +30,26 @@ namespace mdJucePlugin
 			}, lcdInteraction::defaultEnabled);
 		bindGroup(_root, "btWheelSpeed", "panelWheelSpeedPercent");
 		bindGroup(_root, "btEncoderSpeed", "panelEncoderSpeedPercent");
+
+		m_ramRecordingComplete = juceRmlUi::helper::findChild(
+			_root, "btRamRecordingComplete", false);
+		m_ramRecordingOriginal = juceRmlUi::helper::findChild(
+			_root, "btRamRecordingOriginal", false);
+		if(m_ramRecordingComplete)
+			juceRmlUi::EventListener::AddClick(m_ramRecordingComplete, [this]
+			{
+				static_cast<AudioPluginAudioProcessor&>(m_editor.getProcessor())
+					.setRamRecordingMode(md::RamRecordingMode::CompleteTail);
+				updateRamRecordingMode();
+			});
+		if(m_ramRecordingOriginal)
+			juceRmlUi::EventListener::AddClick(m_ramRecordingOriginal, [this]
+			{
+				static_cast<AudioPluginAudioProcessor&>(m_editor.getProcessor())
+					.setRamRecordingMode(md::RamRecordingMode::Original);
+				updateRamRecordingMode();
+			});
+		updateRamRecordingMode();
 
 		if(auto* const loadFactory = juceRmlUi::helper::findChild(
 			_root, "btLoadInstalledFactoryStorage", false))
@@ -74,14 +95,16 @@ namespace mdJucePlugin
 				m_editor.restorePreviousStorage();
 			});
 			updateRestoreAvailability();
-			startTimerHz(2);
 		}
+		if(m_restoreStorage || m_ramRecordingComplete || m_ramRecordingOriginal)
+			startTimerHz(2);
 	}
 
 	void SettingsPanelFeel::timerCallback()
 	{
 		updateRestoreAvailability();
 		updateFirmwareLabel();
+		updateRamRecordingMode();
 	}
 
 	void SettingsPanelFeel::updateFirmwareLabel()
@@ -91,6 +114,31 @@ namespace mdJucePlugin
 		const auto text = "Running: " + m_editor.getFirmwareDescription();
 		if(m_firmwareLabel->GetInnerRML() != text)
 			m_firmwareLabel->SetInnerRML(text);
+	}
+
+	void SettingsPanelFeel::updateRamRecordingMode()
+	{
+		if(!m_ramRecordingComplete && !m_ramRecordingOriginal)
+			return;
+		auto& processor = static_cast<AudioPluginAudioProcessor&>(m_editor.getProcessor());
+		const auto mode = processor.getRamRecordingMode();
+		const bool available = processor.isRamRecordingModeAvailable();
+		if(m_ramRecordingComplete)
+		{
+			if(auto* const button = juceRmlUi::helper::findChild(
+				m_ramRecordingComplete, "button", false))
+				juceRmlUi::ElemButton::setChecked(button,
+					mode == md::RamRecordingMode::CompleteTail);
+			juceRmlUi::helper::setEnabled(m_ramRecordingComplete, available);
+		}
+		if(m_ramRecordingOriginal)
+		{
+			if(auto* const button = juceRmlUi::helper::findChild(
+				m_ramRecordingOriginal, "button", false))
+				juceRmlUi::ElemButton::setChecked(button,
+					mode == md::RamRecordingMode::Original);
+			juceRmlUi::helper::setEnabled(m_ramRecordingOriginal, available);
+		}
 	}
 
 	void SettingsPanelFeel::updateRestoreAvailability()

@@ -26,6 +26,7 @@ set(SOURCES
 	mdsdsencode.cpp mdsdsencode.h
 	mdsampledirectory.cpp mdsampledirectory.h
 	mdmachines.cpp mdmachines.h
+	mdrampacking.h
 	mdsim.cpp mdsim.h
 	mdrom.cpp mdrom.h
 	mdromdata.cpp mdromdata.h

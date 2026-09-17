@@ -10,6 +10,12 @@ namespace md
 		Monomachine
 	};
 
+	enum class RamRecordingMode : uint8_t
+	{
+		Original,
+		CompleteTail
+	};
+
 	// DeviceCreateParams::customData is serialized by the remote-device bridge. Keep the
 	// legacy zero value as Machinedrum, while tagged values make new callers explicit.
 	static constexpr uint32_t g_deviceCustomDataMachinedrum = 0x4d440001; // "MD"

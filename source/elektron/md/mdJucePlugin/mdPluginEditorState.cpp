@@ -67,6 +67,23 @@ namespace mdJucePlugin
 	{
 		jucePluginEditorLib::PluginEditorState::initContextMenu(_menu);
 		auto& processor = static_cast<AudioPluginAudioProcessor&>(m_processor);
+		if(processor.getModel() == md::MachineModel::Machinedrum)
+		{
+			const bool available = processor.isRamRecordingModeAvailable();
+			const auto mode = processor.getRamRecordingMode();
+			juceRmlUi::Menu ramRecording;
+			ramRecording.addEntry("Complete tails (recommended)", available,
+				mode == md::RamRecordingMode::CompleteTail, [&processor]
+				{
+					processor.setRamRecordingMode(md::RamRecordingMode::CompleteTail);
+				});
+			ramRecording.addEntry("Original finalization", available,
+				mode == md::RamRecordingMode::Original, [&processor]
+				{
+					processor.setRamRecordingMode(md::RamRecordingMode::Original);
+				});
+			_menu.addSubMenu("RAM recording", std::move(ramRecording));
+		}
 		juceRmlUi::Menu diagnostics;
 		diagnostics.addEntry(processor.performanceDiagnosticsActive()
 			? "Stop performance capture" : "Start performance capture", [this]

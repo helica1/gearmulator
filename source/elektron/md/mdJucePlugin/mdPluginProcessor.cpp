@@ -105,6 +105,7 @@ namespace
 			{0}, {0, 2, 4}
 		};
 	}
+
 }
 
 namespace mdJucePlugin
@@ -119,6 +120,11 @@ namespace mdJucePlugin
 			_stream.write<uint64_t>(m_firmwareFingerprint);
 		}
 		jucePluginEditorLib::Processor::saveChunkData(_stream);
+		if(m_model == md::MachineModel::Machinedrum)
+		{
+			baseLib::ChunkWriter chunk(_stream, "RAMF", 1);
+			_stream.write(static_cast<uint8_t>(getRamRecordingMode()));
+		}
 		const auto& controller = dynamic_cast<const Controller&>(getController());
 		const auto snapshot = controller.createAutomationSnapshot();
 		if(!snapshot.empty())
@@ -144,6 +150,29 @@ namespace mdJucePlugin
 			auto& controller = dynamic_cast<Controller&>(getController());
 			(void)controller.restoreAutomationSnapshot(snapshot);
 		});
+		_reader.add("RAMF", 1, [this](baseLib::BinaryStream& _stream, uint32_t)
+		{
+			m_ramRecordingModeChunkSeen = true;
+			const auto mode = static_cast<md::RamRecordingMode>(_stream.read<uint8_t>());
+			if(mode == md::RamRecordingMode::Original
+				|| mode == md::RamRecordingMode::CompleteTail)
+				setRamRecordingMode(mode);
+		});
+	}
+
+	bool AudioPluginAudioProcessor::loadCustomData(const std::vector<uint8_t>& _sourceBuffer)
+	{
+		const auto previous = getRamRecordingMode();
+		m_ramRecordingModeChunkSeen = false;
+		const bool result = jucePluginEditorLib::Processor::loadCustomData(_sourceBuffer);
+		if(!result)
+		{
+			setRamRecordingMode(previous);
+			return false;
+		}
+		if(m_model == md::MachineModel::Machinedrum && !m_ramRecordingModeChunkSeen)
+			setRamRecordingMode(md::RamRecordingMode::Original);
+		return true;
 	}
 
 	AudioPluginAudioProcessor::AudioPluginAudioProcessor()
@@ -362,6 +391,10 @@ namespace mdJucePlugin
 		, m_ephemeralConfig(_ephemeralConfig)
 		, m_firmwareImagePath(_ephemeralConfig ? std::string{} : initialFirmwareImagePath(getConfig(), _model))
 	{
+		if(m_model == md::MachineModel::Machinedrum)
+			m_ramRecordingMode.store(
+				static_cast<uint8_t>(md::RamRecordingMode::CompleteTail),
+				std::memory_order_relaxed);
 		// The hardware-width skins need more than the generic 100% default. Keep
 		// the migration within a laptop desktop; the editor window restores this
 		// configured scale after the standalone host's placeholder-size pass.
@@ -379,6 +412,7 @@ namespace mdJucePlugin
 		}
 
 		getController();
+		setRamRecordingMode(getRamRecordingMode());
 		const auto latencyBlocks = getConfig().getIntValue("latencyBlocks", static_cast<int>(getPlugin().getLatencyBlocks()));
 		Processor::setLatencyBlocks(latencyBlocks);
 		if(_allowMcpServer && !_ephemeralConfig)
@@ -959,7 +993,31 @@ namespace mdJucePlugin
 				"Do NOT discuss firmware or ROMs in Discord. "
 				"Do not request or share files or download links, "
 				"or ask for help obtaining or installing firmware.");
+		d->setRamRecordingMode(getRamRecordingMode());
 		return d.release();
+	}
+
+	void AudioPluginAudioProcessor::setRamRecordingMode(md::RamRecordingMode _mode)
+	{
+		if(m_model != md::MachineModel::Machinedrum)
+			_mode = md::RamRecordingMode::Original;
+		m_ramRecordingMode.store(static_cast<uint8_t>(_mode), std::memory_order_relaxed);
+		getPlugin().withDeviceLocked([_mode](synthLib::Device* const _device)
+		{
+			if(auto* const device = dynamic_cast<md::Device*>(_device))
+				device->setRamRecordingMode(_mode);
+		});
+	}
+
+	bool AudioPluginAudioProcessor::isRamRecordingModeAvailable()
+	{
+		if(m_model != md::MachineModel::Machinedrum)
+			return false;
+		return getPlugin().withDeviceLocked([](synthLib::Device* const _device)
+		{
+			const auto* const device = dynamic_cast<const md::Device*>(_device);
+			return device && device->supportsRamRecordingMode();
+		});
 	}
 
 	void AudioPluginAudioProcessor::getRemoteDeviceParams(synthLib::DeviceCreateParams& _params) const

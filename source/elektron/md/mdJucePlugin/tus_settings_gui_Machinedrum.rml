@@ -31,6 +31,23 @@
 	<label>Works on synthesis parameters, LFO edit, and Master FX. Menus, tabs, empty cells, and other LCD controls remain inert.</label>
 
 	<settingsspacer1/>
+	<h1>RAM Recording</h1>
+	<settingsspacer1/>
+	<div id="btRamRecordingComplete" class="settings-checkboxwithlabel">
+		<button id="button" class="settings-checkbox"/>
+		<label>Complete RAM recording tails (recommended)</label>
+	</div>
+	<settingsspacer1/>
+	<label>Writes the complete advertised recording extent, preventing old audio from remaining at the end of some recordings.</label>
+	<settingsspacer1/>
+	<div id="btRamRecordingOriginal" class="settings-checkboxwithlabel">
+		<button id="button" class="settings-checkbox"/>
+		<label>Original RAM recording finalization</label>
+	</div>
+	<settingsspacer1/>
+	<label>Preserves the original OS 1.63 recording logic for exact compatibility.</label>
+
+	<settingsspacer1/>
 	<div class="settings-advanced">
 		<h1>Panel Feel</h1>
 		<settingsspacer1/>

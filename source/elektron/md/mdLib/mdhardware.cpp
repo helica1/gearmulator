@@ -1,5 +1,6 @@
 #include "mdhardware.h"
 #include "mdhostclock.h"
+#include "mdrampacking.h"
 #include "mdtransportpolicy.h"
 
 #include "mdsysexautomation.h"
@@ -375,7 +376,7 @@ namespace md
 						// this legacy purge; strict skip-on-empty RX supplies the hardware boundary.
 						const bool s_immediate = !isMonomachine();
 						const bool preserveRendezvousFutureEdges =
-							m_mdOnDemandRendezvousActive && _selfDsp == 0
+							m_mdOnDemandRendezvousActive
 							&& !isMonomachine();
 						const uint64_t esaiNow = m_esaiFrameIndex;
 						auto& lastShallow = m_linkLastShallow[_selfDsp];
@@ -953,6 +954,19 @@ namespace md
 				});
 				producerEssi.setOnDemandTxWireSemantics(true);
 				mixerEssi.setOnDemandRxWireSemantics(true);
+				// Both directions share the same on-demand serial protocol: only
+				// fresh TX words form receive edges, and a complete burst must
+				// survive the legacy queue cleanup.
+				mixerEssi.setOnDemandTxWireSemantics(true);
+				producerEssi.setOnDemandRxWireSemantics(true);
+				producerEssi.setPendingReceiveDmaOnEnable(true);
+				// Retained idle words used to keep the peer's scheduler clock
+				// coupled. Preserve that clock rendezvous without inventing RX
+				// data; otherwise coarse slices can slip a 32-sample block.
+				mixerEssi.setOnDemandTxIdleCallback([this]
+				{
+					schedCatchUpDspToDsp(1, 0);
+				});
 				m_mdLinkAwaitFresh = false;
 			}
 		}
@@ -1608,6 +1622,7 @@ namespace md
 
 	void Hardware::advance(const uint32_t _machineFrames)
 	{
+		serviceRamRecordingMode();
 		m_schedFramesTotal += static_cast<double>(_machineFrames);
 
 		while(schedStep())
@@ -1619,6 +1634,32 @@ namespace md
 		// Never make the emulation/audio thread wait for a UI snapshot read. If the
 		// reader owns the short copy lock, the next machine interval republishes.
 		m_frontPanelPublisher->tryPublish(m_frontPanel);
+	}
+
+	void Hardware::requestRamRecordingMode(const RamRecordingMode _mode)
+	{
+		m_ramRecordingMode = _mode;
+		m_ramRecordingModePending = supportsRamRecordingMode();
+	}
+
+	void Hardware::serviceRamRecordingMode()
+	{
+		if(!m_ramRecordingModePending || !isFirmwareMidiReady())
+			return;
+		switch(setRamPackingMode(m_dspProducer.dsp(), m_ramRecordingMode))
+		{
+		case RamPackingUpdate::Busy:
+			return;
+		case RamPackingUpdate::Applied:
+		case RamPackingUpdate::AlreadyApplied:
+			m_ramRecordingModePending = false;
+			return;
+		case RamPackingUpdate::UnexpectedCode:
+			m_ramRecordingModePending = false;
+			std::fprintf(stderr,
+				"[MD] RAM recording compatibility mode unavailable: unexpected loaded program\n");
+			return;
+		}
 	}
 
 	namespace

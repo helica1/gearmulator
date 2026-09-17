@@ -143,6 +143,12 @@ namespace md
 		uint32_t getDspClockPercent() const override;
 		uint64_t getDspClockHz() const override;
 		MachineModel getModel() const { return m_model; }
+		bool supportsRamRecordingMode() const
+		{
+			return m_hardware && m_hardware->supportsRamRecordingMode();
+		}
+		void setRamRecordingMode(RamRecordingMode _mode);
+		RamRecordingMode ramRecordingMode() const { return m_ramRecordingMode; }
 		uint64_t hardwareEpoch() const { return m_hardwareEpoch; }
 		// All import lifecycle calls require the owning Plugin/processor lock.
 		// Payload ownership remains in TurboMidiTransfer; dialogs carry only tickets.
@@ -249,6 +255,7 @@ namespace md
 		ProjectStateRestoreStatus m_restoreStatus = ProjectStateRestoreStatus::Idle;
 		std::string m_restoreError;
 		bool m_nativeProgramChangesEnabled = true;
+		RamRecordingMode m_ramRecordingMode = RamRecordingMode::Original;
 		std::string m_mdFlashCacheFilename;
 		uint64_t m_hardwareEpoch = 0;
 		const uint64_t m_sysexDeviceId;

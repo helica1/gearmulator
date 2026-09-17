@@ -687,7 +687,8 @@ namespace
 			"minimum-budget overflow recovery exceeded two slot-table traversals");
 	}
 
-	std::vector<uint8_t> withoutAutomationChunk(const std::vector<uint8_t>& _state)
+	std::vector<uint8_t> withoutChunk(const std::vector<uint8_t>& _state,
+		const char* const _tag)
 	{
 		std::vector<uint8_t> result;
 		size_t position = 0;
@@ -700,17 +701,57 @@ namespace
 			const auto chunkSize = static_cast<size_t>(12) + length;
 			require(chunkSize <= _state.size() - position,
 				"malformed saved chunk length");
-			const auto isAutomation = std::memcmp(
-				_state.data() + position, "AUTO", 4) == 0;
-			if(isAutomation)
+			const auto matches = std::memcmp(
+				_state.data() + position, _tag, 4) == 0;
+			if(matches)
 				removed = true;
 			else
 				result.insert(result.end(), _state.begin() + position,
 					_state.begin() + position + chunkSize);
 			position += chunkSize;
 		}
-		require(removed, "saved custom state did not contain AUTO chunk");
+		require(removed, std::string("saved custom state did not contain ")
+			+ std::string(_tag, 4) + " chunk");
 		return result;
+	}
+
+	std::vector<uint8_t> withoutAutomationChunk(const std::vector<uint8_t>& _state)
+	{
+		return withoutChunk(_state, "AUTO");
+	}
+
+	void verifyRamRecordingModeState()
+	{
+		Harness mdHarness(md::MachineModel::Machinedrum);
+		auto& processor = mdHarness.processor;
+		require(processor.getRamRecordingMode() == md::RamRecordingMode::CompleteTail,
+			"new Machinedrum instance did not default to complete RAM tails");
+
+		processor.setRamRecordingMode(md::RamRecordingMode::Original);
+		std::vector<uint8_t> originalState;
+		processor.saveCustomData(originalState);
+		processor.setRamRecordingMode(md::RamRecordingMode::CompleteTail);
+		require(processor.loadCustomData(originalState),
+			"RAM recording mode state was rejected");
+		require(processor.getRamRecordingMode() == md::RamRecordingMode::Original,
+			"saved original RAM recording mode was not restored");
+
+		processor.setRamRecordingMode(md::RamRecordingMode::CompleteTail);
+		std::vector<uint8_t> completeState;
+		processor.saveCustomData(completeState);
+		const auto legacyState = withoutChunk(completeState, "RAMF");
+		processor.setRamRecordingMode(md::RamRecordingMode::CompleteTail);
+		require(processor.loadCustomData(legacyState),
+			"legacy state without RAMF was rejected");
+		require(processor.getRamRecordingMode() == md::RamRecordingMode::Original,
+			"legacy state did not preserve original RAM recording behavior");
+
+		Harness mmHarness(md::MachineModel::Monomachine);
+		require(mmHarness.processor.getRamRecordingMode() == md::RamRecordingMode::Original,
+			"Monomachine instance exposed a Machinedrum RAM mode");
+		mmHarness.processor.setRamRecordingMode(md::RamRecordingMode::CompleteTail);
+		require(mmHarness.processor.getRamRecordingMode() == md::RamRecordingMode::Original,
+			"Monomachine accepted a Machinedrum RAM mode");
 	}
 
 	void verifyStateContract(Harness& _harness)
@@ -1016,6 +1057,8 @@ namespace
 
 	void verifyArchitecture(const md::MachineModel _model)
 	{
+		if(_model == md::MachineModel::Machinedrum)
+			verifyRamRecordingModeState();
 		verifyPendingStateBeforeSynchronization(_model);
 		Harness harness(_model);
 		mdJucePlugin::ControllerAutomationTestAccess::useSyntheticFirmware(
