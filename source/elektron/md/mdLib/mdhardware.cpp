@@ -1394,14 +1394,15 @@ namespace md
 									deadline - m_schedUcCyclesDone));
 						}
 						const auto limit = m_uc.idleSelfBranchInstructions(maxCycles);
-						uint32_t instructions = 0;
-						// Keep external input polling at each omitted instruction
-						// boundary; a producer still wakes the ordinary path.
-						for(; instructions < limit; ++instructions)
-							if(m_panelIn.hasPending() || !m_midiIn.empty()
-								|| m_realtimeMidiIn.size() != 0
-								|| m_midiSysexTransfer.ownsMidiWire())
-								break;
+						// Poll external input once per skip. Nothing on this thread can change
+						// these queues while the skipped instructions are accounted, and input
+						// from other threads is picked up at the next probe, at most one
+						// background quantum of emulated time later. Checking at every omitted
+						// instruction made the skip cost linear in its length.
+						const bool inputPending = m_panelIn.hasPending() || !m_midiIn.empty()
+							|| m_realtimeMidiIn.size() != 0
+							|| m_midiSysexTransfer.ownsMidiWire();
+						const uint32_t instructions = inputPending ? 0 : limit;
 						if(instructions)
 						{
 							MD_TRANSPORT_RECORD(m_transportScorecard.idleSelfBranchInstructions
