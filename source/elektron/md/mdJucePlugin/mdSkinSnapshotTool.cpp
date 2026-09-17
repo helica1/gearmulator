@@ -73,9 +73,9 @@ namespace
 			}
 			++m_ticks;
 			const auto* const family = std::getenv("SNAPSHOT_FAMILY");
-			if(m_ticks - m_editorCreatedAt == 60)
+			if(m_ticks - m_editorCreatedAt == 120)
 				capture(family ? family : "rack");
-			if(m_ticks - m_editorCreatedAt == 61)
+			if(m_ticks - m_editorCreatedAt == 121)
 			{
 				std::fflush(stderr);
 				std::_Exit(0);
@@ -117,7 +117,9 @@ namespace
 				std::fprintf(stderr, "no editor component\n");
 				return;
 			}
-			juceRmlUi::RenderingTestAccess::update(*c);
+			// an explicit update can reset freshly built DOM content in the software renderer; opt in only
+			if(std::getenv("SNAPSHOT_FORCE_UPDATE"))
+				juceRmlUi::RenderingTestAccess::update(*c);
 			juce::Image image(juce::Image::ARGB, c->getWidth(), c->getHeight(), true, juce::SoftwareImageType());
 			if(auto* const lnf = dynamic_cast<juceRmlUi::LookAndFeel*>(&c->getLookAndFeel()))
 				lnf->getCurrentImage() = image;
