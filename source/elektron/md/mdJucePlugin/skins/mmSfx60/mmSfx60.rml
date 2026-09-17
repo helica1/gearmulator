@@ -45,7 +45,8 @@
 
 		<!-- Chassis fasteners and continuous faceplate rules. -->
 
-		<div id="btSettings" class="jucePos elektronGear" title="Settings (firmware, panel, audio)" style="left: 8dp; top: 6dp; width: 16dp; height: 16dp;"/>
+		<!-- Settings gear below the top strip: some hosts (Bitwig) size the window to the editor and cover ~28 pt with the title bar. -->
+		<div id="btSettings" class="jucePos elektronGear" title="Settings (firmware, panel, audio)" style="left: 10dp; top: 46dp; width: 18dp; height: 18dp;"/>
 		<div class="jucePos mmScrew" style="left: 25dp; top: 20dp; width: 10dp; height: 10dp;"/>
 		<div class="elektronPixelRule jucePos mmScrewSlot" style="left: 28dp; top: 24dp; width: 4dp; height: 1dp;"/>
 		<div class="jucePos mmScrew" style="left: 631dp; top: 20dp; width: 10dp; height: 10dp;"/>
