@@ -1,0 +1,23 @@
+diff --git a/source/elektron/md/mdLib/mddsp.cpp b/source/elektron/md/mdLib/mddsp.cpp
+index 3cc8a7b4..5d6305d8 100644
+--- a/source/elektron/md/mdLib/mddsp.cpp
++++ b/source/elektron/md/mdLib/mddsp.cpp
+@@ -1,5 +1,7 @@
+ #include "mddsp.h"
+ 
++#include <cstdlib>
++
+ #include "mdhardware.h"
+ #include "mdtransportpolicy.h"
+ 
+@@ -120,6 +122,10 @@ namespace md
+ 		// silicon, the optimizer's cold cost exceeds its measured steady-state gain.
+ 		config.enableOptimizer = false;
+ #endif
++		// Skip idle polling loops up to the next peripheral deadline (Jit::runIdleLoop).
++		// GEARMULATOR_MD_IDLE_SKIP=0/1 overrides the default for comparisons.
++		if(const auto* const idleSkip = std::getenv("GEARMULATOR_MD_IDLE_SKIP"))
++			dsp56k::Jit::setIdleLoopSkip(*idleSkip && *idleSkip != '0');
+ 		config.getBlockConfig = [](const TWord)
+ 			-> std::optional<dsp56k::JitConfig>
+ 		{

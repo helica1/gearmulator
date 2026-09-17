@@ -1,0 +1,324 @@
+diff --git a/source/dsp56kEmu/dsp.cpp b/source/dsp56kEmu/dsp.cpp
+index 17ef61c5..feac63fa 100644
+--- a/source/dsp56kEmu/dsp.cpp
++++ b/source/dsp56kEmu/dsp.cpp
+@@ -58,6 +58,8 @@ namespace dsp56k
+ 		_dsp->execInterrupts();
+ 	}
+ 
++	thread_local uint64_t g_idleSkipTargetCycles = 0;
++
+ 	template <typename Ta, typename Tb> void dspExecPeripherals(DSP* _dsp) noexcept
+ 	{
+ 		_dsp->execPeriph<Ta, Tb>();
+diff --git a/source/dsp56kEmu/dsp.h b/source/dsp56kEmu/dsp.h
+index 1735e284..17c4d5de 100644
+--- a/source/dsp56kEmu/dsp.h
++++ b/source/dsp56kEmu/dsp.h
+@@ -35,6 +35,10 @@ namespace dsp56k
+ 
+ 	template<typename Ta, typename Tb> void dspExecPeripherals(DSP* _dsp) noexcept;
+ 
++	// Cycle count at which the current DSP::execUntilCycles call stops, 0 outside of it. Jit::runIdleLoop
++	// never skips past it.
++	extern thread_local uint64_t g_idleSkipTargetCycles;
++
+ 	static constexpr bool g_useJIT = g_jitSupported;
+ 
+ 	class DSP final
+@@ -214,6 +218,13 @@ namespace dsp56k
+ 
+ 			if constexpr(g_useJIT)
+ 			{
++				struct IdleSkipTarget
++				{
++					explicit IdleSkipTarget(const uint64_t _target) : m_previous(g_idleSkipTargetCycles) { g_idleSkipTargetCycles = _target; }
++					~IdleSkipTarget() { g_idleSkipTargetCycles = m_previous; }
++					uint64_t m_previous;
++				} idleSkipTarget(_targetCycles);
++
+ 				while(m_cycles < _targetCycles)
+ 				{
+ 					const TWord invalidPC = m_jit.getTrampoline().execUntilCycles(this, _targetCycles);
+diff --git a/source/dsp56kEmu/jit.cpp b/source/dsp56kEmu/jit.cpp
+index 9caa60fc..5e48b1b7 100644
+--- a/source/dsp56kEmu/jit.cpp
++++ b/source/dsp56kEmu/jit.cpp
+@@ -1,5 +1,7 @@
+ #include "jit.h"
+ 
++#include <cstring>
++
+ #include "dsp.h"
+ #include "jitblock.h"
+ #include "jitdspmode.h"
+@@ -115,6 +117,11 @@ namespace dsp56k
+ 		Jit::toJitPtr(_jit)->runCheckLoopRegs(_pc);
+ 	}
+ 
++	void funcRunIdleLoop(JitDspPtr* _jit, const TWord _pc) noexcept
++	{
++		Jit::toJitPtr(_jit)->runIdleLoop(_pc);
++	}
++
+ 	void funcRun(JitDspPtr* _jit, TWord _pc) noexcept
+ 	{
+ 		Jit::toJitPtr(_jit)->run(_pc);
+@@ -313,6 +320,97 @@ namespace dsp56k
+ 		The blocks at the old end carry the loop-back, the ones at the new end do not: drop both,
+ 		re-register the loop, and the next execution compiles them for the loop as it is now.
+ 	*/
++	/*	Firmware often waits by polling: a short loop that reads a pin or a peripheral register, compares
++		and branches back ("jset #bit,x:periph,*"). While nothing outside changes, every pass does exactly
++		the same thing and only advances the instruction and cycle counters. Outside changes can only
++		happen at a peripheral deadline, through an interrupt, or when the host scheduler stops this DSP.
++
++		This runs the block that closes such a loop. When the loop was taken, it runs the loop once more
++		block by block, applying the same checks the dispatcher applies before every block. If every
++		register is unchanged after that pass, the loop is in a steady state: the counters advance by as
++		many whole passes as fit strictly before the next deadline, and the dispatcher continues exactly
++		as if those passes had been executed. Loops made of blocks that may write memory never get here
++		(JitBlockInfo::Flags::IdleSafe).
++	*/
++	void Jit::runIdleLoop(const TWord _pc) noexcept
++	{
++		auto& dsp = m_dsp;
++		run(_pc);
++
++		if(!getIdleLoopSkip())
++			return;
++
++		const auto stopCycles = g_idleSkipTargetCycles;
++		const auto periphFunc = dsp.getExecPeripheralsFunc();
++		const auto* const periph = dsp.perif[0];
++		const auto& regs = dsp.regs();
++
++		const auto head = regs.pc.toWord();
++		const auto* const closing = m_currentChain->getBlock(_pc);
++		if(!closing || head != closing->getInfo().branchTarget)
++			return;		// loop not taken
++
++		// cheap rejections first: a loop that is about to be interrupted anyway is not worth checking
++		constexpr uint64_t minimumDistance = 12;
++		if(dsp.getProcessingMode() != DSP::Default || dsp.getInterruptFunc() != periphFunc
++			|| stopCycles <= dsp.m_cycles + minimumDistance
++			|| periph->getTargetClock() <= dsp.m_instructions + minimumDistance
++			|| (periph->hasCycleDeadline() && periph->getTargetCycle() <= dsp.m_cycles + minimumDistance))
++			return;
++
++		DspRegs before;
++		std::memcpy(&before, &regs, sizeof(DspRegs));
++		const auto instructions0 = dsp.m_instructions;
++		const auto cycles0 = dsp.m_cycles;
++
++		// one more pass, block by block, as the dispatcher would run it
++		auto pc = head;
++		for(uint32_t blocks = 0; ; ++blocks)
++		{
++			if(blocks >= 8 || periph->isDue(dsp.m_instructions, dsp.m_cycles) || dsp.m_cycles >= stopCycles
++				|| dsp.getInterruptFunc() != periphFunc || dsp.getProcessingMode() != DSP::Default)
++				return;
++			const auto* const block = m_currentChain->getBlock(pc);
++			if(!block || block->getPCFirst() != pc || !block->getInfo().hasFlag(JitBlockInfo::Flags::IdleSafe)
++				|| !block->getFunc())
++				return;
++			m_trampoline.execOne(&dsp.regs(), pc, block->getFunc());
++			pc = regs.pc.toWord();
++			if(pc == head)
++				break;
++		}
++
++		if(dsp.getInterruptFunc() != periphFunc || dsp.getProcessingMode() != DSP::Default)
++			return;
++		const auto passInstructions = dsp.m_instructions - instructions0;
++		const auto passCycles = dsp.m_cycles - cycles0;
++		if(!passInstructions || !passCycles)
++			return;
++		if(std::memcmp(&before, &regs, sizeof(DspRegs)) != 0)
++			return;
++
++		const auto instructions = dsp.m_instructions;
++		const auto cycles = dsp.m_cycles;
++		const auto targetClock = periph->getTargetClock();
++		if(targetClock <= instructions || stopCycles <= cycles)
++			return;
++		auto passes = (targetClock - instructions - 1) / passInstructions;
++		passes = std::min(passes, (stopCycles - cycles - 1) / passCycles);
++		if(periph->hasCycleDeadline())
++		{
++			const auto targetCycle = periph->getTargetCycle();
++			if(targetCycle <= cycles)
++				return;
++			passes = std::min(passes, (targetCycle - cycles - 1) / passCycles);
++		}
++		if(!passes)
++			return;
++
++		dsp.m_instructions += passes * passInstructions;
++		dsp.m_cycles += passes * passCycles;
++		s_idleLoopSkippedInstructions.fetch_add(passes * passInstructions, std::memory_order_relaxed);
++	}
++
+ 	void Jit::checkLoopAddressChange() noexcept
+ 	{
+ 		const auto& r = m_dsp.regs();
+@@ -378,6 +476,9 @@ namespace dsp56k
+ 		if(i.terminationReason == JitBlockInfo::TerminationReason::WriteLoopRegs && i.hasFlag(JitBlockInfo::Flags::WritesLoopRegsDirectly))
+ 			return &funcRunCheckLoopRegs;
+ 
++		if(i.hasFlag(JitBlockInfo::Flags::IdleLoopCandidate) && getIdleLoopSkip())
++			return &funcRunIdleLoop;
++
+ 		if(i.hasFlag(JitBlockInfo::Flags::ModeChange))
+ 			return &funcRunCheckModeChange;
+ 
+diff --git a/source/dsp56kEmu/jit.h b/source/dsp56kEmu/jit.h
+index 5857f17c..018bff97 100644
+--- a/source/dsp56kEmu/jit.h
++++ b/source/dsp56kEmu/jit.h
+@@ -1,5 +1,7 @@
+ #pragma once
+ 
++#include <atomic>
++
+ #include <memory>
+ 
+ #include "types.h"
+@@ -67,6 +69,13 @@ namespace dsp56k
+ 		void runCheckPMemWriteAndModeChange(TWord _pc) noexcept;
+ 		void runCheckModeChange(TWord _pc) noexcept;
+ 		void runCheckLoopRegs(TWord _pc) noexcept;
++		void runIdleLoop(TWord _pc) noexcept;
++
++		// Skipping of idle polling loops (runIdleLoop). Off by default; hosts opt in. Static so that the
++		// Jit object layout does not change.
++		static void setIdleLoopSkip(const bool _enabled) { s_idleLoopSkip.store(_enabled, std::memory_order_relaxed); }
++		static bool getIdleLoopSkip() { return s_idleLoopSkip.load(std::memory_order_relaxed); }
++		static uint64_t getIdleLoopSkippedInstructions() { return s_idleLoopSkippedInstructions.load(std::memory_order_relaxed); }
+ 
+ 		const JitConfig& getConfig() const { return m_config; }
+ 		const JitBlockChain* getCurrentChain() const { return m_currentChain; }	// for tools that inspect compiled blocks
+@@ -155,5 +164,8 @@ namespace dsp56k
+ 		// the following data is accessed by JIT code at runtime, it NEEDS to be put last into this struct to be
+ 		// able to use ARM relative addressing, see member ordering in dsp.h
+ 		JitRuntimeData m_runtimeData;
++
++		static inline std::atomic<bool> s_idleLoopSkip{false};
++		static inline std::atomic<uint64_t> s_idleLoopSkippedInstructions{0};
+ 	};
+ }
+diff --git a/source/dsp56kEmu/jitblock.cpp b/source/dsp56kEmu/jitblock.cpp
+index 4acd2dd7..7faf1f7c 100644
+--- a/source/dsp56kEmu/jitblock.cpp
++++ b/source/dsp56kEmu/jitblock.cpp
+@@ -13,6 +13,48 @@
+ 
+ namespace dsp56k
+ {
++	namespace
++	{
++		// Instructions that cannot write memory or peripherals. A block made only of these that branches
++		// back to its own start keeps repeating identically until something outside it changes, which
++		// can only happen at a peripheral deadline (see Jit::runIdleLoop).
++		bool isIdleLoopSafe(const Instruction _inst, const TWord _op)
++		{
++			switch(_inst)
++			{
++			case Invalid:
++			case Nop:
++			case Move_Nop:
++			case Move_xx:
++			case Mover:
++			case Bcc_xxxx: case Bcc_xxx: case Bcc_Rn:
++			case Bra_xxxx: case Bra_xxx: case Bra_Rn:
++			case Jcc_xxx: case Jcc_ea: case Jmp_ea: case Jmp_xxx:
++			case Brclr_ea: case Brclr_aa: case Brclr_pp: case Brclr_qq: case Brclr_S:
++			case Brset_ea: case Brset_aa: case Brset_pp: case Brset_qq: case Brset_S:
++			case Jclr_ea: case Jclr_aa: case Jclr_pp: case Jclr_qq: case Jclr_S:
++			case Jset_ea: case Jset_aa: case Jset_pp: case Jset_qq: case Jset_S:
++			case Btst_ea: case Btst_aa: case Btst_pp: case Btst_qq: case Btst_D:
++			case Cmp_S1S2: case Cmp_xxS2: case Cmp_xxxxS2: case Cmpm_S1S2: case Cmpu_S1S2:
++			case Tst:
++			case And_SD: case And_xx: case And_xxxx:
++			case Or_SD: case Or_xx: case Or_xxxx:
++			case Eor_SD: case Eor_xx: case Eor_xxxx:
++			case Add_SD: case Add_xx: case Add_xxxx:
++			case Sub_SD: case Sub_xx: case Sub_xxxx:
++			case Tfr:
++				return true;
++			// memory to register only (W set means read for these)
++			case Movex_ea: case Movex_aa: case Movey_ea: case Movey_aa: case Movel_ea: case Movel_aa:
++				return getFieldValue(_inst, Field_W, _op) != 0;
++			// peripheral to register only (W set means write for these)
++			case Movep_SXqq: case Movep_SYqq:
++				return getFieldValue(_inst, Field_W, _op) == 0;
++			default:
++				return false;
++			}
++		}
++	}
+ 	JitBlock::JitBlock(JitEmitter& _a, DSP& _dsp, JitRuntimeData& _runtimeData, JitConfig&& _config)
+ 	: m_runtimeData(_runtimeData)
+ 	, m_asm(_a)
+@@ -78,6 +120,9 @@ namespace dsp56k
+ 
+ 		auto writesM = RegisterMask::None;
+ 		auto readsM = RegisterMask::None;
++		// Code in the vector area qualifies too (some firmware keeps its main loop there); runIdleLoop only
++		// skips while the DSP is not servicing an interrupt.
++		bool idleLoopSafe = !_info.hasFlag(JitBlockInfo::Flags::IsLoopBodyBegin);
+ 
+ 		while(shouldEmit)
+ 		{
+@@ -104,6 +149,9 @@ namespace dsp56k
+ 
+ 			opcodes.getInstructionTypes(opA, instA, instB);
+ 
++			if(!isIdleLoopSafe(instA, opA) || !isIdleLoopSafe(instB, opA))
++				idleLoopSafe = false;
++
+ 			auto written = RegisterMask::None;
+ 			auto read = RegisterMask::None;
+ 
+@@ -263,6 +311,15 @@ namespace dsp56k
+ 				break;
+ 			}
+ 		}
++
++		if(idleLoopSafe && numInstructions > 0)
++		{
++			_info.addFlag(JitBlockInfo::Flags::IdleSafe);
++			const auto end = _pc + numWords;
++			if(terminationReason == JitBlockInfo::TerminationReason::Branch && _info.branchTarget != g_invalidAddress
++				&& _info.branchTarget < end && end - _info.branchTarget <= 16)
++				_info.addFlag(JitBlockInfo::Flags::IdleLoopCandidate);
++		}
+ 	}
+ 
+ 	bool JitBlock::emit(JitBlockRuntimeData& _rt, JitBlockChain* _chain, const TWord _pc, const PagedArray<JitCacheEntry>& _cache, const std::set<TWord>& _volatileP, const std::map<TWord, TWord>& _loopStarts, const std::set<TWord>& _loopEnds, bool _profilingSupport)
+diff --git a/source/dsp56kEmu/jitblockinfo.h b/source/dsp56kEmu/jitblockinfo.h
+index 1d47f6f2..a98af5a1 100644
+--- a/source/dsp56kEmu/jitblockinfo.h
++++ b/source/dsp56kEmu/jitblockinfo.h
+@@ -33,6 +33,8 @@ namespace dsp56k
+ 			IsLoopBodyBegin		= 0x04,
+ 			PeripheralAccess	= 0x08,
+ 			WritesLoopRegsDirectly	= 0x10,	// LA/LC written by something other than a DO instruction
++			IdleSafe			= 0x20,	// cannot write memory, peripherals, loop or mode registers, see Jit::runIdleLoop
++			IdleLoopCandidate	= 0x40,	// IdleSafe and closes a short loop with a branch back to at most 16 words before its end
+ 		};
+ 
+ 		auto hasFlag(const Flags _flag) const
+diff --git a/source/dsp56kEmu/peripherals.h b/source/dsp56kEmu/peripherals.h
+index 055fba8a..1bb0ca26 100644
+--- a/source/dsp56kEmu/peripherals.h
++++ b/source/dsp56kEmu/peripherals.h
+@@ -113,6 +113,8 @@ namespace dsp56k
+ 		void setDelayCycles(uint32_t _delayCycles) noexcept;
+ 		void setCycleDeadline(uint32_t _delayCycles) noexcept;
+ 		void clearCycleDeadline() noexcept { m_hasCycleDeadline = false; }
++		bool hasCycleDeadline() const noexcept { return m_hasCycleDeadline; }
++		uint64_t getTargetCycle() const noexcept { return m_targetCycle; }
+ 
+ 		void resetDelayCycles(const uint64_t _instructionCount, const uint32_t _delayCycles) noexcept
+ 		{
