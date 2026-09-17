@@ -78,8 +78,9 @@ actually in the machine's UW slots.*
 
 - Everything from the base project: key chording and parameter locks with the mouse, encoder push, SysEx file
   transfer, host audio input, multiple outputs. See [README.base.md](README.base.md).
-- **Render ahead** (Settings > DSP/Audio): optionally run the machine one or more blocks ahead on its own thread,
-  trading a little reported latency for resistance to CPU spikes.
+- **Render ahead** (Settings > DSP/Audio): optionally run the machine one or more blocks ahead **on its own thread,
+  on another core**. The DAW stops running the emulation inside its audio callback, so the plugin nearly vanishes
+  from the DAW's CPU meter and CPU spikes stop causing clicks, at the cost of a little reported latency.
 - **Lower CPU use** from two emulator fixes, plus Joe Landers' latest RAM recording fixes.
 - **DAW sync:** sample-accurate MIDI clock, start, continue and stop from the host. On the Machinedrum set
   GLOBAL > SYNC > TEMPO IN to EXTERNAL.

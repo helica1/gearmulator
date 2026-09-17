@@ -22,7 +22,11 @@
 		<label>4 blocks</label>
 	</div>
 	<settingsspacer1/>
-	<label>Off runs the machine inside your DAW's audio callback: the lowest latency, but a moment of high CPU load can click. With render ahead the machine runs that many blocks ahead on a thread of its own, so a slow moment is absorbed instead of heard. Your DAW compensates the added latency for playback and recording; you notice it only when playing live. Try 1 block first, 2 if it still clicks. Saved as the default for new instances.</label>
+	<label style="font-weight: bold;">Any setting above Off moves the machine onto its own thread, on another CPU core. Your DAW no longer runs the emulation inside its audio callback, so this plug-in almost disappears from the DAW's CPU meter.</label>
+	<settingsspacer1/>
+	<label>The work still happens: total CPU use is the same. It is simply no longer counted against the DAW's audio deadline, which is what causes clicks.</label>
+	<settingsspacer1/>
+	<label>Off runs the machine inside your DAW's audio callback: the lowest latency, but a moment of high CPU load can click. With render ahead the machine runs that many blocks ahead, so a slow moment is absorbed instead of heard. Your DAW compensates the added latency for playback and recording; you notice it only when playing live. Try 1 block first, 2 if it still clicks. Saved as the default for new instances.</label>
 	<settingsspacer1/>
 	<label>Latency (blocks) above is a different setting: it only delays incoming MIDI.</label>
 	<settingsspacer1/>

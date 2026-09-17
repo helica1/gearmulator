@@ -196,9 +196,11 @@ settings if needed.
 ## Other changes
 
 - **Render ahead** (Settings > DSP/Audio > Render Ahead): off by default, which keeps the machine inside the
-  DAW's audio callback with the lowest latency. With 1, 2 or 4 blocks the machine renders that far ahead on a
-  thread of its own, so a moment of high CPU load is absorbed instead of heard; the extra latency is reported to
-  the DAW. The output is sample-for-sample the synchronous output delayed by that latency
+  DAW's audio callback with the lowest latency. **With 1, 2 or 4 blocks the machine moves onto its own thread,
+  on another CPU core, so the DAW no longer runs the emulation inside its audio callback and the plug-in almost
+  disappears from the DAW's CPU meter.** Total CPU use is unchanged; it is simply no longer counted against the
+  audio deadline, which is what causes clicks. A moment of high load is absorbed instead of heard, and the extra
+  latency is reported to the DAW. The output is sample-for-sample the synchronous output delayed by that latency
   (`mdRenderAheadTest`). Saved as the default for new instances. Separate from *Latency (blocks)*, which only
   delays incoming MIDI.
 - **Lower CPU use.** Two fixes save about 11% on the Machinedrum: the DSP emulator's loop-end check from the Nord
