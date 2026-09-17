@@ -1,6 +1,9 @@
 #include "mdSettingsAudioInput.h"
 
+#include "mdPluginProcessor.h"
+
 #include "jucePluginEditorLib/pluginProcessor.h"
+#include "juceRmlUi/rmlElemButton.h"
 #include "juceRmlUi/rmlEventListener.h"
 #include "juceRmlUi/rmlHelper.h"
 
@@ -31,6 +34,20 @@ namespace mdJucePlugin
 			if(auto* const holder = standaloneHolder(m_processor))
 				holder->showAudioSettingsDialog();
 		});
+		for(const uint32_t blocks : {0u, 1u, 2u, 4u})
+		{
+			auto* const option = juceRmlUi::helper::findChild(_root, "btRenderAhead" + std::to_string(blocks), false);
+			if(!option)
+				continue;
+			m_renderAhead.emplace_back(option, blocks);
+			juceRmlUi::EventListener::AddClick(option, [this, blocks]
+			{
+				if(auto* const processor = dynamic_cast<AudioPluginAudioProcessor*>(&m_processor))
+					processor->setRenderAheadBlocks(blocks);
+				updateRenderAhead();
+			});
+		}
+		updateRenderAhead();
 		timerCallback();
 		startTimerHz(2);
 	}
@@ -38,6 +55,19 @@ namespace mdJucePlugin
 	SettingsAudioInput::~SettingsAudioInput()
 	{
 		stopTimer();
+	}
+
+	void SettingsAudioInput::updateRenderAhead()
+	{
+		auto* const processor = dynamic_cast<AudioPluginAudioProcessor*>(&m_processor);
+		if(!processor)
+			return;
+		const auto current = processor->getRenderAheadBlocks();
+		for(const auto& [element, blocks] : m_renderAhead)
+		{
+			if(auto* const button = juceRmlUi::helper::findChild(element, "button", false))
+				juceRmlUi::ElemButton::setChecked(button, blocks == current);
+		}
 	}
 
 	void SettingsAudioInput::timerCallback()

@@ -140,6 +140,7 @@ namespace synthLib
 
 		processMidiInEvents();
 		processMidiClock(_bpm, _ppqPos, _isPlaying, _count, _ppqKnown);
+		m_device->setHostNonRealtime(m_nonRealtime.load(std::memory_order_relaxed));
 
 		if(instrument)
 			RealtimeInstrumentation::setCurrentDeviceContext(static_cast<uint32_t>(m_deviceSamplerate),
@@ -303,6 +304,12 @@ namespace synthLib
 		m_extraLatencyBlocks = _latencyBlocks;
 		updateDeviceLatency();
 		return true;
+	}
+
+	void Plugin::refreshDeviceLatency()
+	{
+		std::lock_guard lock(m_lock);
+		updateDeviceLatency();
 	}
 
 	void Plugin::processMidiClock(const double _bpm, const double _ppqPos, const bool _isPlaying, const size_t _sampleCount, const bool _ppqKnown)

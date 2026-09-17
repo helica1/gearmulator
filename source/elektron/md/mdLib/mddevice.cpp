@@ -233,6 +233,16 @@ namespace md
 		return false;
 	}
 
+	Device::~Device()
+	{
+		if(m_renderAhead)
+		{
+			std::vector<synthLib::SMidiEvent> pending;
+			m_renderAhead->stop(pending);
+			m_renderAhead.reset();
+		}
+	}
+
 	float Device::getSamplerate() const
 	{
 		return g_samplerate;
@@ -245,6 +255,7 @@ namespace md
 
 	bool Device::getState(std::vector<uint8_t>& _state, synthLib::StateType _type)
 	{
+		const std::lock_guard machineLock(m_machineMutex);
 		if(isProjectStateRestorePending() && _type == m_requestedStateType
 			&& m_requestedState)
 		{
@@ -305,6 +316,7 @@ namespace md
 	{
 		if(!_state)
 			return {};
+		const std::lock_guard machineLock(m_machineMutex);
 		FactoryFlashSnapshot factoryFlash;
 		if(m_model == MachineModel::Machinedrum)
 			(void)m_hardware->copyFactoryFlashSnapshot(factoryFlash);
@@ -327,6 +339,7 @@ namespace md
 
 	bool Device::finishStateTransaction(synthLib::Device::StateTransaction& _transaction)
 	{
+		const std::lock_guard machineLock(m_machineMutex);
 		auto* const transaction = dynamic_cast<StateTransactionImpl*>(&_transaction);
 		if(!transaction || transaction->m_context != m_preparationContext
 			|| transaction->m_generation != m_deferredStateGeneration)
@@ -518,6 +531,7 @@ namespace md
 
 	void Device::setRamRecordingMode(const RamRecordingMode _mode)
 	{
+		const std::lock_guard machineLock(m_machineMutex);
 		m_ramRecordingMode = m_model == MachineModel::Machinedrum
 			? _mode : RamRecordingMode::Original;
 		if(m_hardware)
@@ -657,6 +671,7 @@ namespace md
 
 	bool Device::setDspClockPercent(const uint32_t _percent)
 	{
+		const std::lock_guard machineLock(m_machineMutex);
 		return m_hardware->getDspMixer().getPeriph().getEssiClock().setSpeedPercent(_percent);
 	}
 
@@ -708,28 +723,106 @@ namespace md
 				traceMidi("out", _midiOut[i]);
 	}
 
+	void Device::process(const synthLib::TAudioInputs& _inputs, const synthLib::TAudioOutputs& _outputs,
+		const size_t _size, const std::vector<synthLib::SMidiEvent>& _midiIn, std::vector<synthLib::SMidiEvent>& _midiOut)
+	{
+		if(!m_renderAhead)
+		{
+			synthLib::Device::process(_inputs, _outputs, _size, _midiIn, _midiOut);
+			return;
+		}
+
+		// Same translation as the synchronous path; the events travel with this callback's chunk and are
+		// scheduled by the worker at the same position within the block.
+		_midiOut.clear();
+		m_asyncMidi.clear();
+		for(const auto& ev : _midiIn)
+		{
+			m_asyncTranslated.clear();
+			getMidiTranslator().process(m_asyncTranslated, ev);
+			for(auto& e : m_asyncTranslated)
+				m_asyncMidi.push_back(e);
+		}
+		m_renderAhead->process(_inputs, _outputs, static_cast<uint32_t>(_size), m_asyncMidi, _midiOut, m_hostNonRealtime);
+	}
+
 	void Device::processAudio(const synthLib::TAudioInputs& _inputs, const synthLib::TAudioOutputs& _outputs, const size_t _samples)
 	{
-		m_hardware->processAudio(_inputs, _outputs,
-			static_cast<uint32_t>(_samples), getExtraLatencySamples());
+		renderMachine(_inputs, _outputs, static_cast<uint32_t>(_samples), getExtraLatencySamples());
+	}
+
+	void Device::renderMachine(const synthLib::TAudioInputs& _inputs, const synthLib::TAudioOutputs& _outputs,
+		const uint32_t _frames, const uint32_t _latency)
+	{
+		m_hardware->processAudio(_inputs, _outputs, _frames, _latency);
 		if(m_deferredPreparedState && m_deferredPreparedState->m_hardware
 			&& m_deferredPreparedState->m_hardware->isProjectStateRestorePending())
 		{
-			synthLib::RealtimeInstrumentation::DeferredCandidateScope instrumentation(
-				static_cast<uint32_t>(_samples));
-			m_deferredPreparedState->m_hardware->advance(
-				static_cast<uint32_t>(_samples));
+			synthLib::RealtimeInstrumentation::DeferredCandidateScope instrumentation(_frames);
+			m_deferredPreparedState->m_hardware->advance(_frames);
 		}
+	}
+
+	void Device::renderAheadChunk(std::vector<synthLib::SMidiEvent>& _midiIn, const synthLib::TAudioInputs& _inputs,
+		const synthLib::TAudioOutputs& _outputs, const uint32_t _frames, std::vector<synthLib::SMidiEvent>& _midiOut)
+	{
+		// Worker thread, machine mutex held. Exactly what the synchronous path does for one host block; the
+		// prefill in RenderAhead delays the result.
+		for(const auto& ev : _midiIn)
+		{
+			traceMidi("in", ev);
+			scheduleMidiEvent(ev, getExtraLatencySamples());
+		}
+		if(_frames)
+			renderMachine(_inputs, _outputs, _frames, getExtraLatencySamples());
+		readMidiOut(_midiOut);
 	}
 
 	void Device::extraLatencyChanged()
 	{
+		const std::lock_guard machineLock(m_machineMutex);
 		m_hardware->retimeMidi(getExtraLatencySamples());
 	}
 
-	bool Device::sendMidi(const synthLib::SMidiEvent& _ev, std::vector<synthLib::SMidiEvent>& _response)
+	void Device::setRenderAheadFrames(const uint32_t _frames)
 	{
-		traceMidi("in", _ev);
+		// Callers hold the Plugin lock (withDeviceLocked), so the audio callback is not inside process().
+		const std::lock_guard machineLock(m_machineMutex);
+		if(_frames == getRenderAheadFrames())
+			return;
+
+		// Everything handed to a running worker but not rendered yet is scheduled now, so switching never
+		// loses a Note Off or a transport message.
+		std::vector<synthLib::SMidiEvent> pending;
+		if(m_renderAhead)
+		{
+			m_renderAhead->stop(pending);
+			m_renderAhead.reset();
+		}
+		for(const auto& ev : pending)
+			scheduleMidiEvent(ev, getExtraLatencySamples());
+
+		if(_frames == 0)
+			return;
+
+		m_asyncMidi.reserve(1024);
+		m_asyncTranslated.reserve(64);
+		m_renderAhead = std::make_unique<RenderAhead>(m_machineMutex,
+			[this](std::vector<synthLib::SMidiEvent>& _midiIn, const synthLib::TAudioInputs& _inputs,
+				const synthLib::TAudioOutputs& _outputs, const uint32_t _frames, std::vector<synthLib::SMidiEvent>& _midiOut)
+			{
+				renderAheadChunk(_midiIn, _inputs, _outputs, _frames, _midiOut);
+			},
+			getChannelCountIn(), getChannelCountOut(), _frames + g_renderAheadSlackFrames, getSamplerate());
+	}
+
+	uint32_t Device::getRenderAheadFrames() const
+	{
+		return m_renderAhead ? m_renderAhead->getPrefillFrames() - g_renderAheadSlackFrames : 0;
+	}
+
+	bool Device::scheduleMidiEvent(const synthLib::SMidiEvent& _ev, const uint32_t _extraLatency)
+	{
 		if(_ev.sysex.empty())
 		{
 			const auto status = static_cast<uint8_t>(_ev.a & 0xf0);
@@ -743,6 +836,12 @@ namespace md
 				return true;
 		}
 
-		return m_hardware->scheduleMidi(_ev, getExtraLatencySamples());
+		return m_hardware->scheduleMidi(_ev, _extraLatency);
+	}
+
+	bool Device::sendMidi(const synthLib::SMidiEvent& _ev, std::vector<synthLib::SMidiEvent>&)
+	{
+		traceMidi("in", _ev);
+		return scheduleMidiEvent(_ev, getExtraLatencySamples());
 	}
 }

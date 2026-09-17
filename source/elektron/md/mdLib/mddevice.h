@@ -1,10 +1,12 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 
 #include "mdhardware.h"
+#include "mdrenderahead.h"
 #include "mdsyseximport.h"
 
 #include "synthLib/device.h"
@@ -85,6 +87,27 @@ namespace md
 
 		Device(const synthLib::DeviceCreateParams& _params,
 			const std::vector<uint8_t>& _initialPatchRam = {});
+		~Device() override;
+
+		Device(const Device&) = delete;
+		Device& operator=(const Device&) = delete;
+
+		// Render ahead (Settings > DSP/Audio): with a nonzero frame count the machine renders that far ahead
+		// on a thread of its own (RenderAhead) and the host hears everything that much later, which the
+		// reported latency covers. Zero keeps it on the host audio thread. Independent of the extra MIDI
+		// latency (latency blocks), which applies in both modes.
+		void process(const synthLib::TAudioInputs& _inputs, const synthLib::TAudioOutputs& _outputs, size_t _size,
+			const std::vector<synthLib::SMidiEvent>& _midiIn, std::vector<synthLib::SMidiEvent>& _midiOut) override;
+		void beginExclusiveAccess() override { m_machineMutex.lock(); }
+		void endExclusiveAccess() override { m_machineMutex.unlock(); }
+		void setHostNonRealtime(const bool _nonRealtime) override { m_hostNonRealtime = _nonRealtime; }
+		bool isRenderingAhead() const { return m_renderAhead != nullptr; }
+		void setRenderAheadFrames(uint32_t _frames);
+		uint32_t getRenderAheadFrames() const;
+		RenderAhead::Stats getRenderAheadStats() const
+		{
+			return m_renderAhead ? m_renderAhead->getStats() : RenderAhead::Stats{};
+		}
 
 		float getSamplerate() const override;
 		bool isValid() const override;
@@ -137,8 +160,15 @@ namespace md
 		uint32_t getDefaultLatencyBlocks() const override { return 0; }
 		uint32_t getInternalLatencyInputToOutput() const override
 		{
-			return g_hostAudioInputSafetyFrames;
+			return g_hostAudioInputSafetyFrames + (m_renderAhead ? m_renderAhead->getPrefillFrames() : 0);
 		}
+		uint32_t getInternalLatencyMidiToOutput() const override
+		{
+			return m_renderAhead ? m_renderAhead->getPrefillFrames() : 0;
+		}
+		// Rendering ahead keeps this many frames beyond the requested render-ahead frames, so a host block that is a
+		// frame or two longer than usual (resampler) is still ready. Reported to the host as latency.
+		static constexpr uint32_t g_renderAheadSlackFrames = 32;
 		bool setDspClockPercent(uint32_t _percent) override;
 		uint32_t getDspClockPercent() const override;
 		uint64_t getDspClockHz() const override;
@@ -244,6 +274,10 @@ namespace md
 
 		void clearProjectStateRestore();
 		void failProjectStateRestore(std::string _error);
+		bool scheduleMidiEvent(const synthLib::SMidiEvent& _ev, uint32_t _extraLatency);
+		void renderMachine(const synthLib::TAudioInputs& _inputs, const synthLib::TAudioOutputs& _outputs, uint32_t _frames, uint32_t _latency);
+		void renderAheadChunk(std::vector<synthLib::SMidiEvent>& _midiIn, const synthLib::TAudioInputs& _inputs,
+			const synthLib::TAudioOutputs& _outputs, uint32_t _frames, std::vector<synthLib::SMidiEvent>& _midiOut);
 
 		const MachineModel m_model;
 		std::shared_ptr<FrontPanelPublisher> m_frontPanelPublisher;
@@ -263,5 +297,14 @@ namespace md
 		bool m_sysexStarted = false;
 		bool m_sysexPendingCancelled = false;
 		uint64_t m_deferredStateGeneration = 0;
+
+		// Held by the render-ahead worker while it renders a chunk and by everything outside the audio
+		// callback that touches the machine. The audio callback itself never takes it.
+		mutable std::recursive_timed_mutex m_machineMutex;
+		bool m_hostNonRealtime = false;
+		std::vector<synthLib::SMidiEvent> m_asyncMidi;
+		std::vector<synthLib::SMidiEvent> m_asyncTranslated;
+		// Declared last: destroyed first, so its worker stops before the machine goes away.
+		std::unique_ptr<RenderAhead> m_renderAhead;
 	};
 }

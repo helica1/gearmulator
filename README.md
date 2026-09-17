@@ -78,6 +78,9 @@ actually in the machine's UW slots.*
 
 - Everything from the base project: key chording and parameter locks with the mouse, encoder push, SysEx file
   transfer, host audio input, multiple outputs. See [README.base.md](README.base.md).
+- **Render ahead** (Settings > DSP/Audio): optionally run the machine one or more blocks ahead on its own thread,
+  trading a little reported latency for resistance to CPU spikes.
+- **Lower CPU use** from two emulator fixes, plus Joe Landers' latest RAM recording fixes.
 - **DAW sync:** sample-accurate MIDI clock, start, continue and stop from the host. On the Machinedrum set
   GLOBAL > SYNC > TEMPO IN to EXTERNAL.
 - **DSP56300 emulator fixes** (JIT and interpreter) found while emulating other hardware.
@@ -93,9 +96,13 @@ git clone --recursive -b md-mm-remote-panel https://github.com/helica1/gearmulat
 cd gearmulator
 cmake -G Ninja -B build_plugin -DCMAKE_BUILD_TYPE=Release \
     -Dgearmulator_SYNTH_ELEKTRON=ON -Dgearmulator_BUILD_JUCEPLUGIN=ON \
-    -Dgearmulator_BUILD_JUCEPLUGIN_CLAP=ON -Dgearmulator_BUILD_JUCEPLUGIN_AU=ON .
+    -Dgearmulator_BUILD_JUCEPLUGIN_CLAP=ON -Dgearmulator_BUILD_JUCEPLUGIN_AU=ON \
+    -DGEARMULATOR_MDMM_APPLE_THINLTO=ON -DGEARMULATOR_MDMM_APPLE_OPTIMIZE_DSP=ON .
 ninja -C build_plugin mdJucePlugin_All mdJucePlugin_CLAP mmJucePlugin_All mmJucePlugin_CLAP
 ```
+
+The two `GEARMULATOR_MDMM_APPLE_*` options add link-time optimization; profile-guided optimization saves
+more but needs a training run, see ADDITIONS.md.
 
 - Plugins land in `bin/plugins/Release/{VST3,CLAP,AU}`. Copy them to `~/Library/Audio/Plug-Ins/{VST3,CLAP,Components}`
   and restart the DAW.

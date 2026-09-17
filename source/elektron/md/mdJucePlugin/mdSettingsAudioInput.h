@@ -4,6 +4,8 @@
 #include "juce_events/juce_events.h"
 
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace Rml { class Element; }
 namespace jucePluginEditorLib { class Processor; }
@@ -19,8 +21,10 @@ namespace mdJucePlugin
 
 	private:
 		void timerCallback() override;
+		void updateRenderAhead();
 
 		jucePluginEditorLib::Processor& m_processor;
+		std::vector<std::pair<Rml::Element*, uint32_t>> m_renderAhead;
 		Rml::Element* m_status;
 		Rml::Element* m_settings;
 		std::string m_lastStatus;

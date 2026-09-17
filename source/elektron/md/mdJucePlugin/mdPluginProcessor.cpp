@@ -1,5 +1,9 @@
 #include "mdPluginProcessor.h"
 
+#include <cmath>
+
+#include <algorithm>
+
 #include "mdController.h"
 #include "mdPluginEditorState.h"
 #include "mdStorageImage.h"
@@ -994,7 +998,59 @@ namespace mdJucePlugin
 				"Do not request or share files or download links, "
 				"or ask for help obtaining or installing firmware.");
 		d->setRamRecordingMode(getRamRecordingMode());
+		// A replacement device (firmware change) keeps the stability preference. The Plugin reads its
+		// latency when the device is attached.
+		d->setRenderAheadFrames(computeRenderAheadFrames());
 		return d.release();
+	}
+
+	namespace
+	{
+		constexpr const char* const g_renderAheadBlocksKey = "renderAheadBlocks";
+	}
+
+	uint32_t AudioPluginAudioProcessor::getRenderAheadBlocks() const
+	{
+		const auto blocks = const_cast<AudioPluginAudioProcessor*>(this)->getConfig().getIntValue(g_renderAheadBlocksKey, 0);
+		return static_cast<uint32_t>(std::clamp(blocks, 0, 8));
+	}
+
+	uint32_t AudioPluginAudioProcessor::computeRenderAheadFrames() const
+	{
+		const auto blocks = getRenderAheadBlocks();
+		const auto hostBlock = m_renderAheadHostBlock.load(std::memory_order_relaxed);
+		const auto hostRate = m_renderAheadHostRate.load(std::memory_order_relaxed);
+		if(!blocks || hostBlock <= 0 || hostRate <= 0.0)
+			return 0;
+		// the device runs at its own rate; the resampler hands it proportionally sized blocks
+		return static_cast<uint32_t>(std::ceil(static_cast<double>(blocks) * hostBlock * md::g_samplerate / hostRate));
+	}
+
+	void AudioPluginAudioProcessor::applyRenderAhead()
+	{
+		const auto frames = computeRenderAheadFrames();
+		getPlugin().withDeviceLocked([frames](synthLib::Device* const _device)
+		{
+			if(auto* const device = dynamic_cast<md::Device*>(_device))
+				device->setRenderAheadFrames(frames);
+		});
+		getPlugin().refreshDeviceLatency();
+		updateLatencySamples();
+	}
+
+	void AudioPluginAudioProcessor::setRenderAheadBlocks(const uint32_t _blocks)
+	{
+		getConfig().setValue(g_renderAheadBlocksKey, static_cast<int>(std::min<uint32_t>(_blocks, 8)));
+		getConfig().saveIfNeeded();
+		applyRenderAhead();
+	}
+
+	void AudioPluginAudioProcessor::prepareToPlay(const double _sampleRate, const int _samplesPerBlock)
+	{
+		m_renderAheadHostBlock.store(_samplesPerBlock, std::memory_order_relaxed);
+		m_renderAheadHostRate.store(_sampleRate, std::memory_order_relaxed);
+		jucePluginEditorLib::Processor::prepareToPlay(_sampleRate, _samplesPerBlock);
+		applyRenderAhead();
 	}
 
 	void AudioPluginAudioProcessor::setRamRecordingMode(md::RamRecordingMode _mode)

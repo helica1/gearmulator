@@ -107,6 +107,13 @@ namespace synthLib
 
 		BASELIB_NOINLINE virtual void release(std::vector<SMidiEvent>& _events);
 
+		// Called around every access from outside the audio callback (Plugin::withDeviceLocked).
+		// A device that renders on a thread of its own pauses that thread in between.
+		virtual void beginExclusiveAccess() {}
+		virtual void endExclusiveAccess() {}
+		// The host renders faster than real time (offline bounce): background rendering may be waited for.
+		virtual void setHostNonRealtime(bool) {}
+
 		auto& getMidiTranslator() { return m_midiTranslator; }
 		void reserveMidiEventCapacity(size_t _capacity)
 		{

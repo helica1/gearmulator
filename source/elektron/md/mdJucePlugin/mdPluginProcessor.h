@@ -58,6 +58,12 @@ namespace mdJucePlugin
 		}
 		bool isRamRecordingModeAvailable();
 
+		// Stability preference: render the machine this many host blocks ahead on a thread of its own
+		// (0 = inside the host audio callback, lowest latency). Saved in the config, default for new instances.
+		void setRenderAheadBlocks(uint32_t _blocks);
+		uint32_t getRenderAheadBlocks() const;
+		void prepareToPlay(double _sampleRate, int _samplesPerBlock) override;
+
 		// Firmware image for this instance. Empty = the stock OS discovered next to the
 		// plugin or in the roms folder. A chosen image is remembered as the default for
 		// new instances (config) and travels with the project (state chunk "FWIM").
@@ -91,6 +97,11 @@ namespace mdJucePlugin
 		bool loadCustomData(const std::vector<uint8_t>& _sourceBuffer) override;
 
 	private:
+		uint32_t computeRenderAheadFrames() const;
+		void applyRenderAhead();
+		std::atomic<int> m_renderAheadHostBlock{0};
+		std::atomic<double> m_renderAheadHostRate{0.0};
+
 		static BusesProperties createBusesProperties();
 		bool isBusesLayoutSupported(const BusesLayout& _layout) const override;
 		AudioPluginAudioProcessor(md::MachineModel _model,

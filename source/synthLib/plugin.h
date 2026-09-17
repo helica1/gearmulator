@@ -14,6 +14,8 @@
 
 #include "dsp56kBase/ringbuffer.h"
 
+#include "device.h"
+
 #include "deviceTypes.h"
 #include "midiClock.h"
 
@@ -23,6 +25,7 @@ namespace synthLib
 
 	class Plugin
 	{
+		struct ExclusiveDeviceAccess;
 	public:
 		static constexpr size_t RealtimeMidiEventCapacity = 1024;
 
@@ -76,8 +79,12 @@ namespace synthLib
 		decltype(auto) withDeviceLocked(Callback&& _callback) const
 		{
 			std::lock_guard lock(m_lock);
+			const ExclusiveDeviceAccess access(m_device);
 			return std::forward<Callback>(_callback)(m_device);
 		}
+
+		// Offline hosts may render faster than real time; forwarded to the device on each process call.
+		void setNonRealtime(const bool _nonRealtime) { m_nonRealtime.store(_nonRealtime, std::memory_order_relaxed); }
 
 #if !SYNTHLIB_DEMO_MODE
 		bool getState(std::vector<uint8_t>& _state, StateType _type) const;
@@ -86,6 +93,8 @@ namespace synthLib
 		void insertMidiEvent(const SMidiEvent& _ev);
 
 		bool setLatencyBlocks(uint32_t _latencyBlocks);
+		// Re-reads the device's internal latency after it changed on the device side.
+		void refreshDeviceLatency();
 		uint32_t getLatencyBlocks() const { return m_extraLatencyBlocks; }
 
 	private:
@@ -104,6 +113,16 @@ namespace synthLib
 		SMidiEvent m_pendingSysexInput;
 
 		ResamplerInOut m_resampler;
+		struct ExclusiveDeviceAccess
+		{
+			explicit ExclusiveDeviceAccess(Device* _device) : m_device(_device) { if(m_device) m_device->beginExclusiveAccess(); }
+			~ExclusiveDeviceAccess() { if(m_device) m_device->endExclusiveAccess(); }
+			ExclusiveDeviceAccess(const ExclusiveDeviceAccess&) = delete;
+			ExclusiveDeviceAccess& operator=(const ExclusiveDeviceAccess&) = delete;
+			Device* m_device;
+		};
+
+		std::atomic<bool> m_nonRealtime{false};
 		mutable std::recursive_mutex m_lock;
 		mutable std::mutex m_lockAddMidiEvent;
 

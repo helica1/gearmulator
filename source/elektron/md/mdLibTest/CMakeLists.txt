@@ -338,3 +338,17 @@ set_property(TARGET mdDspProfile PROPERTY FOLDER "Elektron/test")
 add_executable(mdClickProbe mdClickProbe.cpp)
 target_link_libraries(mdClickProbe PRIVATE mdLib)
 set_property(TARGET mdClickProbe PROPERTY FOLDER "Elektron/test")
+add_executable(mdChunkInvarianceProbe mdChunkInvarianceProbe.cpp)
+target_link_libraries(mdChunkInvarianceProbe PRIVATE mdLib)
+set_property(TARGET mdChunkInvarianceProbe PROPERTY FOLDER "Elektron/test")
+
+# Rendering ahead on a worker thread must reproduce the synchronous output, delayed by the reported latency.
+add_executable(mdRenderAheadTest mdRenderAheadTest.cpp)
+target_link_libraries(mdRenderAheadTest PRIVATE mdLib)
+add_test(NAME mdRenderAheadTest COMMAND mdRenderAheadTest)
+set_tests_properties(mdRenderAheadTest PROPERTIES
+	LABELS "Integration;FirmwareTest;AudioIo" SKIP_RETURN_CODE 77 TIMEOUT 900)
+set_property(TARGET mdRenderAheadTest PROPERTY FOLDER "Elektron/test")
+add_executable(mdRenderAheadRealtimeProbe mdRenderAheadRealtimeProbe.cpp)
+target_link_libraries(mdRenderAheadRealtimeProbe PRIVATE mdLib)
+set_property(TARGET mdRenderAheadRealtimeProbe PROPERTY FOLDER "Elektron/test")

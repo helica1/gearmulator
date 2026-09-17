@@ -33,7 +33,7 @@ Each plugin instance can run a different OS image: the stock OS or a community b
 
 ### Using it
 
-1. Click the **gear icon** at the top left of the faceplate (or right-click the panel and choose Settings).
+1. Click the **gear icon** left of the master volume knob (or right-click the panel and choose Settings).
 2. On the GUI page, section **Firmware**, click **Load Firmware Image...** and pick an 8 MiB `.bin` image.
    **Use Stock OS** switches back.
 3. Confirm. The machine restarts on the new OS from a fresh factory state.
@@ -195,7 +195,21 @@ settings if needed.
 
 ## Other changes
 
-- **Gear icon** at the top left of both faceplates opens the settings.
+- **Render ahead** (Settings > DSP/Audio > Render Ahead): off by default, which keeps the machine inside the
+  DAW's audio callback with the lowest latency. With 1, 2 or 4 blocks the machine renders that far ahead on a
+  thread of its own, so a moment of high CPU load is absorbed instead of heard; the extra latency is reported to
+  the DAW. The output is sample-for-sample the synchronous output delayed by that latency
+  (`mdRenderAheadTest`). Saved as the default for new instances. Separate from *Latency (blocks)*, which only
+  delays incoming MIDI.
+- **Lower CPU use.** Two fixes save about 11% on the Machinedrum: the DSP emulator's loop-end check from the Nord
+  work now runs only after direct loop-register writes, and the ColdFire idle skip checks for input once per
+  skip. Release builds should use link-time and profile-guided optimization like Joe Landers' releases
+  (`-DGEARMULATOR_MDMM_APPLE_THINLTO=ON -DGEARMULATOR_MDMM_APPLE_OPTIMIZE_DSP=ON`, PGO trained with
+  `mdCpuBench`), another ~15%. Skipping idle DSP loops was tried and measured without benefit, see
+  [docs/experiments](docs/experiments/README.md).
+- **Joe Landers' latest fixes merged:** Machinedrum internal RAM recording transport and the selectable RAM
+  tail completion.
+- **Gear icon** left of the master volume knob opens the settings (below the strip that Bitwig's title bar covers).
 - **DSP56300 core fixes** (submodule branch `md-mm-plus-nord-fixes` on helica1/dsp56300): JIT `cmpm` clobbering A,
   `movep` into program memory skipping block invalidation, vector-area fall-through PC, interpreter DO FOREVER / MOVEP /
   LA handling. Found while emulating the Nord Micro Modular; all MD/MM tests pass with them.

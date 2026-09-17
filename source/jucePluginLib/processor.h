@@ -203,9 +203,10 @@ namespace pluginLib
 	protected:
 		void destroyController();
 		void handleAsyncUpdate() override;
+		// Protected so a product processor can extend it and still run this implementation.
+		void prepareToPlay(double sampleRate, int maximumExpectedSamplesPerBlock) override;
 
 	private:
-		void prepareToPlay(double sampleRate, int maximumExpectedSamplesPerBlock) override;
 		void releaseResources() override;
 
 		//==============================================================================
