@@ -1,3 +1,7 @@
+> **This branch adds:** third-party firmware (Machinedrum X.13, Monomachine X.01A/EMS), drag-and-drop sample
+> management, iPad/browser control with an XY multitouch pad, and direct machine changing.
+> See **[ADDITIONS.md](ADDITIONS.md)** for what changed since the base version and how to use it.
+
 My fork of TUS's Gearmulator project, where I add emulations of Elektron's
 Machinedrum and Monomachine.
 
